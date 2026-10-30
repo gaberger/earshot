@@ -14,6 +14,10 @@ import SwiftUI
 struct EarshotApp: App {
     @StateObject private var library = Library()
 
+    init() {
+        Prefs.migrate()
+    }
+
     var body: some Scene {
         WindowGroup(id: MainWindow.id) {
             ContentView(lib: library)
@@ -1185,6 +1189,20 @@ enum Prefs {
     static let identifySpeakers = "identifySpeakers"  // Bool, default true
     static let speakerCount = "speakerCount"          // Int, 0 = detect automatically
     static let summaryTemplate = "summaryTemplate"    // SummaryTemplate.id
+
+    /// The bundle ID before the app was named Earshot. Its settings are copied over once.
+    static let oldBundleID = "local.whisper.transcribe"
+    private static let migrated = "migratedFromOldBundleID"
+
+    /// Copies settings saved under the old bundle ID, without replacing any set since.
+    static func migrate(from oldID: String = oldBundleID, into defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: migrated) else { return }
+        for (key, value) in defaults.persistentDomain(forName: oldID) ?? [:]
+        where defaults.object(forKey: key) == nil {
+            defaults.set(value, forKey: key)
+        }
+        defaults.set(true, forKey: migrated)
+    }
 }
 
 /// A Plaud-style summary format: which sections the model should write.

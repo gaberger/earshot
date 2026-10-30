@@ -27,7 +27,7 @@
 	<key>CFBundleIconName</key>
 	<string>Earshot</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.whisper.transcribe</string>
+	<string>com.gaberger.earshot</string>
 	<key>CFBundleName</key>
 	<string>Earshot</string>
 	<key>CFBundlePackageType</key>

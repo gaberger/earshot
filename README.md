@@ -216,7 +216,8 @@ Your recordings, summaries, models and settings stay where they are.
    rm -f ~/.local/bin/transcribe ~/.local/bin/speakers   # terminal scripts (source builds only)
    rm -rf ~/Models/whisper ~/Models/speakers             # models, about 3 GB
    rm -f ~/Library/Logs/Earshot.log                      # activity log
-   defaults delete local.whisper.transcribe              # settings
+   defaults delete com.gaberger.earshot                  # settings
+   defaults delete local.whisper.transcribe 2>/dev/null  # settings from versions before the Earshot name
    ```
 
 3. Your recordings are in `~/Recordings/whisper`. Delete that folder only if you don't want them.
