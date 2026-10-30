@@ -96,7 +96,7 @@ struct Recording: Identifiable, Hashable {
 
 @MainActor
 final class Library: ObservableObject {
-    enum Tab: String, CaseIterable { case transcript = "Transcript", summary = "Summary" }
+    enum Tab: String, CaseIterable { case summary = "Summary", transcript = "Transcript" }
 
     static let audioTypes: Set<String> = [
         "wav", "m4a", "mp3", "aiff", "aif", "caf", "flac", "ogg", "opus", "mp4", "mov", "m4v", "webm",
@@ -104,7 +104,7 @@ final class Library: ObservableObject {
 
     @Published var items: [Recording] = []
     @Published var selection: Recording.ID? { didSet { loadSelected() } }
-    @Published var tab: Tab = .transcript
+    @Published var tab: Tab = .summary
     @Published var transcript = ""
     @Published var summary = ""
     @Published var transcribing: Set<Recording.ID> = []
@@ -237,7 +237,7 @@ final class Library: ObservableObject {
         guard FileManager.default.fileExists(atPath: r.url.path) else { return }
         reload()
         selection = r.url.lastPathComponent
-        tab = .transcript
+        tab = .summary
         transcribe(r.url.lastPathComponent)
     }
 
@@ -264,7 +264,7 @@ final class Library: ObservableObject {
         }
         reload()
         selection = id
-        tab = .transcript
+        tab = .summary
         if selected?.hasTranscript == false { transcribe(id) }
     }
 
