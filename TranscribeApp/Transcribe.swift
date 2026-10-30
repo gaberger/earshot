@@ -51,6 +51,9 @@ struct Recording: Identifiable, Hashable {
     var transcriptURL: URL { URL(fileURLWithPath: base + ".txt") }
     var srtURL: URL { URL(fileURLWithPath: base + ".srt") }
     var summaryURL: URL { URL(fileURLWithPath: base + ".summary.md") }
+    /// A name the user gave the recording. It wins over the summary's title.
+    var nameURL: URL { URL(fileURLWithPath: base + ".name") }
+    var hasCustomName: Bool { FileManager.default.fileExists(atPath: nameURL.path) }
     var hasTranscript: Bool { FileManager.default.fileExists(atPath: transcriptURL.path) }
     var hasSummary: Bool { FileManager.default.fileExists(atPath: summaryURL.path) }
 
@@ -72,11 +75,22 @@ struct Recording: Identifiable, Hashable {
         } else {
             date = (try? audio.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
         }
-        // Once summarized, the summary's "# Title" names the recording.
-        let summary = audio.deletingPathExtension().path + ".summary.md"
-        let heading = (try? String(contentsOfFile: summary, encoding: .utf8))?
+        // A name the user typed wins; otherwise, once summarized, the summary's "# Title" names it.
+        let base = audio.deletingPathExtension().path
+        let custom = (try? String(contentsOfFile: base + ".name", encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let heading = (try? String(contentsOfFile: base + ".summary.md", encoding: .utf8))?
             .split(separator: "\n").first { $0.hasPrefix("# ") }
-        title = heading.map { String($0.dropFirst(2)).trimmingCharacters(in: .whitespaces) } ?? fallback
+            .map { String($0.dropFirst(2)).trimmingCharacters(in: .whitespaces) }
+        title = [custom, heading].compactMap { $0 }.first { !$0.isEmpty } ?? fallback
+    }
+
+    /// The summary as shown and copied: its "# Title" line follows the user's name for the recording.
+    func displayedSummary(_ markdown: String) -> String {
+        guard hasCustomName else { return markdown }
+        return markdown.replacingOccurrences(of: #"(?m)^# .*$"#,
+                                             with: "# " + NSRegularExpression.escapedTemplate(for: title),
+                                             options: .regularExpression)
     }
 }
 
@@ -101,6 +115,7 @@ final class Library: ObservableObject {
     @Published var startedAt: Date?
     @Published var translate = false
     @Published var notice: String?
+    @Published var renaming: Recording.ID?  // drives the Rename sheet
     @Published var micName: String?
 
     let dir: URL
@@ -414,9 +429,22 @@ final class Library: ObservableObject {
 
     // MARK: Files
 
+    /// Names a recording. An empty name goes back to the automatic one (the summary's title).
+    func rename(_ id: Recording.ID, to name: String) {
+        guard let r = items.first(where: { $0.id == id }) else { return }
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty {
+            try? FileManager.default.removeItem(at: r.nameURL)
+        } else {
+            try? clean.write(to: r.nameURL, atomically: true, encoding: .utf8)
+        }
+        log("renamed recording")
+        reload()
+    }
+
     func moveToTrash(_ r: Recording) {
         let json = URL(fileURLWithPath: r.audio.deletingPathExtension().path + ".json")
-        for url in [r.audio, r.transcriptURL, r.srtURL, r.summaryURL, json]
+        for url in [r.audio, r.transcriptURL, r.srtURL, r.summaryURL, json, r.nameURL]
         where FileManager.default.fileExists(atPath: url.path) || url == r.audio {
             try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
         }
@@ -431,7 +459,8 @@ final class Library: ObservableObject {
 
     func copyCurrentTab() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(tab == .transcript ? transcript : summary, forType: .string)
+        let text = tab == .transcript ? transcript : (selected?.displayedSummary(summary) ?? summary)
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     func log(_ message: String) {
@@ -801,6 +830,8 @@ struct HelpView: View {
                          + ".txt (transcript), .srt (with timestamps) and .summary.md (summary).")
                     item("Imported files", "Linked into the timeline, not copied. The original stays where it was.")
                     item("Activity log", "~/Library/Logs/Transcribe.log. It records clicks, file names and job results, never what was said.")
+                    para("Rename a recording with the pencil next to its title, by double-clicking the title, or with "
+                         + "right-click → Rename. Until you name it, it takes the title Apple's model gives the summary.")
                     para("Delete a recording with right-click → Move to Trash. That removes the audio, transcript and summary.")
                 }
 
@@ -1046,6 +1077,7 @@ enum Summarizer {
 struct ContentView: View {
     @ObservedObject var lib: Library
     @State private var dropTargeted = false
+    @State private var newName = ""
 
     var body: some View {
         NavigationSplitView {
@@ -1074,6 +1106,23 @@ struct ContentView: View {
         }
         .navigationTitle("Transcribe")
         .toolbar { HeaderControls(lib: lib) }
+        .alert("Rename Recording", isPresented: Binding(get: { lib.renaming != nil },
+                                                        set: { if !$0 { lib.renaming = nil } })) {
+            TextField("Name", text: $newName)
+            Button("Rename") {
+                if let id = lib.renaming { lib.rename(id, to: newName) }
+            }
+            .keyboardShortcut(.defaultAction)
+            if let id = lib.renaming, lib.items.first(where: { $0.id == id })?.hasCustomName == true {
+                Button("Use Automatic Name") { lib.rename(id, to: "") }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The name shows in the timeline and at the top of the summary.")
+        }
+        .onChange(of: lib.renaming) {
+            newName = lib.items.first { $0.id == lib.renaming }?.title ?? ""
+        }
         .dropDestination(for: URL.self) { urls, _ in
             urls.forEach(lib.importFile)
             return !urls.isEmpty
@@ -1203,6 +1252,7 @@ struct Timeline: View {
                         TimelineRow(lib: lib, rec: r)
                             .tag(r.id)
                             .contextMenu {
+                                Button("Rename…") { lib.renaming = r.id }
                                 Button("Show in Finder") { lib.showInFinder(r) }
                                 Button("Transcribe Again") { lib.transcribe(r.id) }
                                 Button("Find Speakers Again") { lib.findSpeakers(r.id) }.disabled(!r.hasTranscript)
@@ -1320,7 +1370,18 @@ struct RecordingDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(rec.title).font(.title2.weight(.semibold)).lineLimit(2).textSelection(.enabled)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(rec.title)
+                        .font(.title2.weight(.semibold))
+                        .lineLimit(2)
+                        .onTapGesture(count: 2) { lib.renaming = rec.id }
+                        .help("Double-click to rename")
+                    Button { lib.renaming = rec.id } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Rename this recording")
+                }
                 Text(rec.date.formatted(date: .complete, time: .shortened))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -1409,7 +1470,7 @@ struct RecordingDetail: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        MarkdownView(markdown: lib.summary)
+                        MarkdownView(markdown: rec.displayedSummary(lib.summary))
                             .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

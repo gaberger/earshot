@@ -23,6 +23,9 @@ written by Apple's on-device model from a chosen template).
 - **Templates**: Meeting minutes, Quick summary, Sales call, One-on-one, Daily
   stand-up, Interview, Lecture or class notes, Brainstorm, Voice memo. Pick one in
   the Summary tab; set the default in Settings.
+- **Names**: a recording takes its summary's title until you name it. Rename it with
+  the pencil next to the title, a double-click on the title, or right-click → Rename.
+  The name is kept in a `.name` file beside the audio.
 - **Translate**: turns speech in other languages into English text.
 - Header bar: Record/Stop (with timer), Import, Translate, Summarize, Copy,
   Finder, Privacy (in-app docs), Settings, and a CPU · GPU · MEM meter.
