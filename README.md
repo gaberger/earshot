@@ -38,7 +38,7 @@ all on-device, with no account, no cloud and no internet connection.
 | 🌍 **Translate** | Turns speech in other languages into English text. |
 | 🗂️ **Timeline** | Every recording by day, named by its summary or by you. |
 | 🧭 **Menu bar** | The ear at the top of the screen: record without opening the window, see the timer, jump to recent recordings. |
-| 📊 **Meter** | CPU, GPU and memory use, live in the header bar. |
+| 📊 **Status bar** | What Earshot is doing now, plus live CPU, GPU and memory use, along the bottom of the window. |
 
 ## 🧭 How it works
 

@@ -805,6 +805,49 @@ final class ResourceMonitor: ObservableObject {
     }
 }
 
+/// The window's bottom status bar: current activity on the left, the CPU · GPU · MEM meter on the right.
+struct StatusBar: View {
+    @ObservedObject var lib: Library
+    @ObservedObject var monitor: ResourceMonitor
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                activity
+                Spacer()
+                ResourceMeter(monitor: monitor)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+        }
+        .background(.bar)
+    }
+
+    @ViewBuilder private var activity: some View {
+        let jobs = [
+            (lib.transcribing.count, "Transcribing"),
+            (lib.findingSpeakers.count, "Finding speakers"),
+            (lib.summarizing.count, "Summarizing"),
+        ].filter { $0.0 > 0 }.map { $0.0 > 1 ? "\($0.1) (\($0.0))" : $0.1 }
+
+        if lib.recording {
+            Label("Recording" + (lib.micName.map { " · \($0)" } ?? ""), systemImage: "record.circle")
+                .foregroundStyle(.red)
+        } else if !jobs.isEmpty {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text(jobs.joined(separator: " · ") + "…")
+            }
+        } else {
+            Label("\(lib.items.count) recording\(lib.items.count == 1 ? "" : "s") · all on this Mac",
+                  systemImage: "lock.fill")
+        }
+    }
+}
+
 struct ResourceMeter: View {
     @ObservedObject var monitor: ResourceMonitor
 
@@ -1050,6 +1093,11 @@ struct HelpView: View {
                          + "While recording it shows the timer. It also lists your five latest recordings.")
                     item("Settings", "Choose which microphone to record from. While recording, the screen "
                          + "shows the microphone's name and a level bar, so you can see it hears you. ⌘,.")
+                }
+
+                section("The status bar", "rectangle.bottomthird.inset.filled") {
+                    item("Left side", "What Earshot is doing now: recording, transcribing, finding speakers or "
+                         + "summarizing. When it is idle, how many recordings you have.")
                     item("CPU · GPU · MEM", "How hard the Mac is working. CPU and memory count this app and Whisper. "
                          + "GPU counts the whole graphics chip, where Whisper and the summary model do most of their work.")
                 }
@@ -1284,6 +1332,7 @@ enum Summarizer {
 
 struct ContentView: View {
     @ObservedObject var lib: Library
+    @StateObject private var monitor = ResourceMonitor()
     @State private var dropTargeted = false
     @State private var newName = ""
 
@@ -1320,6 +1369,10 @@ struct ContentView: View {
         }
         .navigationTitle("Earshot")
         .toolbar { HeaderControls(lib: lib) }
+        // A status bar along the bottom, as in Finder and Xcode: what's happening, and the meter.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            StatusBar(lib: lib, monitor: monitor)
+        }
         .alert("Rename Recording", isPresented: Binding(get: { lib.renaming != nil },
                                                         set: { if !$0 { lib.renaming = nil } })) {
             TextField("Name", text: $newName)
@@ -1364,13 +1417,8 @@ struct ContentView: View {
 /// Everything in the window's header bar.
 struct HeaderControls: ToolbarContent {
     @ObservedObject var lib: Library
-    @StateObject private var monitor = ResourceMonitor()
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .status) {
-            ResourceMeter(monitor: monitor)
-        }
-
         ToolbarItem(placement: .primaryAction) {
             HelpButton()
         }
