@@ -25,6 +25,16 @@ xcrun actool "$(cd ../assets && pwd)/Earshot.icon" --compile "$build" --platform
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
+
+# Version: the release number from ../VERSION, a build number that rises with every commit, and the
+# commit itself ("-dirty" when built from uncommitted changes). The app shows all three.
+version=$(tr -d '[:space:]' < ../VERSION)
+build_number=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+git diff --quiet HEAD 2>/dev/null || commit="$commit-dirty"
+plist="$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" \
+  -c "Set :CFBundleVersion $build_number" -c "Add :EarshotCommit string $commit" "$plist"
 cp "$build/Earshot" "$APP/Contents/MacOS/Earshot"
 cp "$build/Assets.car" "$build/Earshot.icns" "$APP/Contents/Resources/"
 # Menu bar artwork (a template image: macOS tints it for light and dark menu bars).
@@ -37,4 +47,4 @@ codesign --force --deep --sign - "$APP"
 # Tell Finder/Launchpad about the app (and its "Open With" file types).
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 
-echo "Installed: $APP"
+echo "Installed: $APP (Earshot $version, build $build_number, $commit)"

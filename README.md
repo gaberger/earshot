@@ -144,11 +144,13 @@ Choose one.
 
 #### Option A: Download the disk image
 
-1. Open the latest successful [**Build** run](https://github.com/gaberger/earshot/actions/workflows/build.yml)
-   and download the **Earshot** artifact at the bottom of the page (you need to be signed in to GitHub).
-2. Unzip it, then open **Earshot.dmg**.
-3. Drag **Earshot** onto **Applications**.
-4. Eject the disk image.
+1. Download **Earshot-&lt;version&gt;.dmg** from the latest
+   [**release**](https://github.com/gaberger/earshot/releases/latest).
+   (For a build of the newest commit instead, open the latest successful
+   [**Build** run](https://github.com/gaberger/earshot/actions/workflows/build.yml), download the
+   **Earshot-&lt;version&gt;** artifact while signed in to GitHub, and unzip it.)
+2. Open the disk image and drag **Earshot** onto **Applications**.
+3. Eject the disk image.
 
 #### Option B: Build from source
 
@@ -162,7 +164,7 @@ bash EarshotApp/build.sh
 
 This builds `Earshot.app`, installs it in `~/Applications`, and puts the `transcribe` and
 `speakers` scripts in `~/.local/bin` so you can use them from the terminal too. To make your own
-disk image afterwards, run `bash EarshotApp/make-dmg.sh` (→ `Earshot.dmg`).
+disk image afterwards, run `bash EarshotApp/make-dmg.sh` (→ `Earshot-<version>.dmg`).
 
 ### Step 4: Open Earshot for the first time
 
@@ -201,6 +203,10 @@ If a step fails, Earshot shows the error above the tabs:
 `~/Library/Logs/Earshot.log` records each step and its result (never what was said).
 
 ### Update
+
+To see which version you have, choose **Earshot → About Earshot**, or look at the bottom of the
+menu bar panel. It reads like `1.0.0 (16, 3113bfa)`: the version, the build number, and the commit
+it was built from.
 
 - **Disk image:** download the new one and drag it onto **Applications** again. Choose **Replace**.
 - **From source:** `git pull`, then `bash EarshotApp/build.sh`.
@@ -259,17 +265,40 @@ speakers meeting.m4a -n 3       # exactly 3 speakers
 - **Summaries** can be corrected directly: click **Edit** above the summary. Earshot marks it
   as edited and asks before a new summary replaces it.
 
+## 🏷️ Versions and releases
+
+The version lives in one place, the [`VERSION`](VERSION) file, as `MAJOR.MINOR.PATCH`
+([semantic versioning](https://semver.org)): bump PATCH for fixes, MINOR for new features,
+MAJOR for changes that break how things worked before. `build.sh` stamps it into the app with a
+build number (the commit count, so it only goes up) and the commit hash, marked `-dirty` when
+built from uncommitted changes.
+
+To release:
+
+```bash
+echo 1.1.0 > VERSION
+git commit -am "Earshot 1.1.0"
+git tag v1.1.0
+git push origin main --tags && git push github main --tags
+```
+
+The tag makes CI build the disk image and publish it as a
+[GitHub release](https://github.com/gaberger/earshot/releases) with notes from the commits.
+CI stops if the tag and `VERSION` don't match.
+
 ## 🗂️ Project layout
 
 ```
 .
+├── VERSION                the app's version (MAJOR.MINOR.PATCH); see Versions and releases
+├── .github/workflows/     CI: build, test and disk image on every push; a release for each v* tag
 ├── EarshotApp/
 │   ├── Earshot.swift      the whole app: timeline, tabs, recording, speakers, summaries
 │   ├── RichText.swift     the rich summary editor, and Markdown ↔ formatted text
 │   ├── Tests/             editor tests in a real text view: bash EarshotApp/Tests/run.sh
 │   ├── Info.plist         name, icon, microphone permission text, file types it opens
 │   ├── build.sh           builds and installs the app and the scripts
-│   └── make-dmg.sh        packs the built app into Earshot.dmg (drag to Applications)
+│   └── make-dmg.sh        packs the built app into Earshot-<version>.dmg (drag to Applications)
 ├── scripts/
 │   ├── transcribe         whisper.cpp wrapper
 │   └── speakers           speaker detection (Python, run by uv)

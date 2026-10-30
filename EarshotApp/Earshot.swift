@@ -28,6 +28,12 @@ struct EarshotApp: App {
         .windowResizability(.contentMinSize)
         .handlesExternalEvents(matching: ["*"])
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Earshot") {
+                    // The standard panel shows "Version 1.0.0 (…)"; put the build and commit in the brackets.
+                    NSApp.orderFrontStandardAboutPanel(options: [.version: "\(AppVersion.build), \(AppVersion.commit)"])
+                }
+            }
             CommandGroup(replacing: .help) { HelpMenuItem() }
         }
 
@@ -52,6 +58,18 @@ struct EarshotApp: App {
 
 enum MainWindow {
     static let id = "main"
+}
+
+/// The version build.sh stamps into Info.plist: release number (VERSION), build number, commit.
+enum AppVersion {
+    private static func info(_ key: String) -> String {
+        Bundle.main.object(forInfoDictionaryKey: key) as? String ?? "?"
+    }
+    static let version = info("CFBundleShortVersionString")
+    static let build = info("CFBundleVersion")
+    static let commit = info("EarshotCommit")
+    /// "1.0.0 (16, 3113bfa)"
+    static let display = "\(version) (\(build), \(commit))"
 }
 
 // MARK: - Model
@@ -162,6 +180,7 @@ final class Library: ObservableObject {
     init() {
         dir = home.appendingPathComponent("Recordings/whisper")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        log("Earshot \(AppVersion.display) started")
         reload()
         selection = items.first?.id
         loadSelected()
@@ -1064,6 +1083,10 @@ struct MenuBarPanel: View {
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
+            Text("Version \(AppVersion.display)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
         }
         .padding(14)
         .frame(width: 300)
@@ -1112,6 +1135,9 @@ struct HelpView: View {
                         Text("Earshot has no account, no cloud service and no internet connection. "
                              + "Your recordings, transcripts and summaries are made and kept on this computer.")
                             .foregroundStyle(.secondary)
+                        Text("Earshot \(AppVersion.display)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
