@@ -10,11 +10,29 @@
 Models/
 
 # Never commit recordings or their transcripts
+# Every audio and video type Earshot opens (Library.audioTypes)
 *.wav
 *.m4a
 *.mp3
 *.aiff
+*.aif
+*.caf
+*.flac
+*.ogg
+*.opus
+*.mp4
+*.mov
+*.m4v
+*.webm
+# What a recording produces: transcript, subtitles, word timings, summary, name
+*.srt
+*.summary.md
+*.name
+*.txt
+# Recordings Earshot names by time (2026-10-30_115957.json and the like)
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*
 Recordings/
+whisper-header-backup/
 
 .DS_Store
 *.dmg
