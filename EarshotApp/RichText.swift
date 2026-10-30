@@ -65,9 +65,12 @@ enum RichMarkdown {
          .earshotBlock: block.rawValue]
     }
 
-    /// NSTextView keeps a list item's marker as text at the start of the paragraph: "\t•\t".
+    /// The text a list item starts with. With TextKit 2 (macOS 26) the text view draws the bullet or
+    /// checkbox itself and the text holds no marker; inserting one there shows every marker twice.
+    /// Older TextKit 1 views keep the marker as text: "\t•\t".
     static func markerPrefix(_ list: ListKind) -> String {
-        "\t" + NSTextList(markerFormat: list.format, options: 0).marker(forItemNumber: 1) + "\t"
+        guard NSTextList.includesTextListMarkers else { return "" }
+        return "\t" + NSTextList(markerFormat: list.format, options: 0).marker(forItemNumber: 1) + "\t"
     }
 
     // MARK: Markdown → rich text
@@ -357,16 +360,28 @@ struct RichSummaryEditor: NSViewRepresentable {
         }
 
         func textView(_ tv: NSTextView, doCommandBy selector: Selector) -> Bool {
-            // Return at the end of a title or heading starts ordinary text, as in Notes and Pages.
             guard selector == #selector(NSResponder.insertNewline(_:)) else { return false }
             let ns = tv.string as NSString
             let loc = min(tv.selectedRange().location, max(0, ns.length - 1))
-            guard ns.length > 0,
-                  RichMarkdown.block(of: tv.attributedString().attributedSubstring(
-                      from: ns.paragraphRange(for: NSRange(location: loc, length: 0)))) != .body
-            else { return false }
-            tv.insertText("\n", replacementRange: tv.selectedRange())
-            tv.typingAttributes = RichMarkdown.attributes(.body)
+            let para = ns.length == 0 ? NSAttributedString()
+                : tv.attributedString().attributedSubstring(from: ns.paragraphRange(for: NSRange(location: loc, length: 0)))
+            let block = RichMarkdown.block(of: para)
+            let list = RichMarkdown.listKind(of: para)
+            let emptyItem = list != nil && RichMarkdown.stripMarker(para).string
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            // Let the text view make the new line (and end a list on an empty item).
+            tv.insertNewline(nil)
+            if block != .body {
+                // Return at the end of a title or heading starts ordinary text, as in Notes and Pages.
+                tv.typingAttributes = RichMarkdown.attributes(.body)
+            } else if emptyItem {
+                tv.typingAttributes = RichMarkdown.attributes(.body)
+            } else {
+                // Same paragraph kind (list item stays a list item), but plain: bold or italic at the
+                // end of the last line must not carry over. Setting this replaces the text view's own
+                // note that the list continues, so the list style is given explicitly.
+                tv.typingAttributes = RichMarkdown.attributes(.body, list: list)
+            }
             return true
         }
     }

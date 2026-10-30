@@ -470,13 +470,21 @@ final class Library: ObservableObject {
 
     // MARK: Editing the summary
 
+    /// The draft and the whole summary file as they were when editing began.
+    private var summaryDraftBaseline = ""
+    private var summaryBeforeEditing = ""
+
     func beginEditingSummary() {
-        guard let r = selected, !summary.isEmpty else { return }
-        // Hide the hidden header lines (template, edited) from the editor; they are put back on save.
-        summaryDraft = r.displayedSummary(summary)
+        guard !summary.isEmpty else { return }
+        // Edit the summary file's own text. (Not the displayed one: that swaps in the recording's
+        // name for the title, and saving it would overwrite the model's title in the file.)
+        // The hidden header lines (template, edited) stay out of the editor and are put back on save.
+        summaryDraft = summary
             .split(separator: "\n", omittingEmptySubsequences: false)
             .drop { $0.hasPrefix("<!--") }
             .joined(separator: "\n")
+        summaryDraftBaseline = summaryDraft
+        summaryBeforeEditing = summary
         editingSummary = true
         log("editing summary")
     }
@@ -484,6 +492,14 @@ final class Library: ObservableObject {
     /// Called on every keystroke while editing; writes only real changes.
     func saveSummaryDraft() {
         guard let r = selected else { return }
+        if summaryDraft == summaryDraftBaseline {
+            // Back to exactly what it was (or never changed): restore the original file, unmarked.
+            if summary != summaryBeforeEditing {
+                try? summaryBeforeEditing.write(to: r.summaryURL, atomically: true, encoding: .utf8)
+                summary = summaryBeforeEditing
+            }
+            return
+        }
         let md = "<!-- template: \(templateID(for: r)) -->\n\(Self.editedMarker)\n" + summaryDraft
         guard md != summary else { return }
         try? md.write(to: r.summaryURL, atomically: true, encoding: .utf8)

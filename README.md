@@ -180,6 +180,7 @@ speakers meeting.m4a -n 3       # exactly 3 speakers
 ├── EarshotApp/
 │   ├── Earshot.swift      the whole app: timeline, tabs, recording, speakers, summaries
 │   ├── RichText.swift     the rich summary editor, and Markdown ↔ formatted text
+│   ├── Tests/             editor tests in a real text view: bash EarshotApp/Tests/run.sh
 │   ├── Info.plist         name, icon, microphone permission text, file types it opens
 │   └── build.sh           builds and installs the app and the scripts
 ├── scripts/
