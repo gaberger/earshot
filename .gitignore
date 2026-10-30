@@ -1,0 +1,19 @@
+# Built app and build leftovers
+*.app
+*.iconset
+*.icns
+.build/
+
+# Models are large downloads; see README for where they come from
+*.bin
+*.onnx
+Models/
+
+# Never commit recordings or their transcripts
+*.wav
+*.m4a
+*.mp3
+*.aiff
+Recordings/
+
+.DS_Store

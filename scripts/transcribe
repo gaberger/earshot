@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# transcribe — private, offline speech-to-text with whisper.cpp.
+#
+#   transcribe FILE...          transcribe audio/video files (any format ffmpeg reads)
+#   transcribe -r               record from the microphone; press Ctrl+C to stop
+#   options:
+#     -t          translate the speech into English text
+#     -l LANG     spoken language, e.g. en, fr, de (default: auto-detect)
+#
+# Writes FILE.txt, FILE.srt and FILE.json (word timings, for `speakers`) next to
+# each input. Nothing leaves this Mac.
+set -euo pipefail
+
+MODEL_DIR="${WHISPER_MODEL_DIR:-$HOME/Models/whisper}"
+MODEL="$MODEL_DIR/ggml-large-v3-turbo.bin"
+DTW="large.v3.turbo"  # aligns word timings to the audio; must match the model
+# Turbo was trained without translation data, so -t switches to full large-v3.
+TRANSLATE_MODEL="$MODEL_DIR/ggml-large-v3-q5_0.bin"
+VAD_MODEL="$MODEL_DIR/ggml-silero-v5.1.2.bin"
+REC_DIR="${WHISPER_REC_DIR:-$HOME/Recordings/whisper}"
+
+lang="auto"
+translate=()
+record=false
+
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while getopts ":rtl:h" opt; do
+  case $opt in
+    r) record=true ;;
+    t) translate=(-tr); MODEL="$TRANSLATE_MODEL"; DTW="large.v3" ;;
+    l) lang="$OPTARG" ;;
+    h) usage 0 ;;
+    *) usage 1 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+[[ -f "$MODEL" ]] || { echo "Model not found: $MODEL" >&2; exit 1; }
+
+files=("$@")
+if $record; then
+  mkdir -p "$REC_DIR"
+  out="$REC_DIR/$(date +%Y-%m-%d_%H%M%S).wav"
+  echo "Recording to $out — press Ctrl+C to stop."
+  # Let Ctrl+C stop ffmpeg (which then finalises the file) without killing this script.
+  trap ':' INT
+  ffmpeg -hide_banner -loglevel error -f avfoundation -i ":default" -ac 1 -ar 16000 "$out" || true
+  trap - INT
+  files=("$out")
+fi
+
+(( ${#files[@]} )) || usage 1
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+for f in "${files[@]}"; do
+  [[ -f "$f" ]] || { echo "Skipping, not a file: $f" >&2; continue; }
+  echo "Transcribing: $f"
+  # whisper.cpp wants 16 kHz mono WAV; convert whatever we were given.
+  wav="$tmp/input.wav"
+  ffmpeg -hide_banner -loglevel error -y -i "$f" -ac 1 -ar 16000 -c:a pcm_s16le "$wav"
+  base="${f%.*}"
+  vad=()
+  [[ -f "$VAD_MODEL" ]] && vad=(--vad -vm "$VAD_MODEL")
+  whisper-cli -m "$MODEL" -f "$wav" -l "$lang" ${translate[@]+"${translate[@]}"} \
+    ${vad[@]+"${vad[@]}"} -dtw "$DTW" -otxt -osrt -ojf -of "$base" -np
+  echo "Saved: $base.txt, $base.srt and $base.json"
+done
