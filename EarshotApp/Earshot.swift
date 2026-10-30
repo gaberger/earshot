@@ -68,6 +68,10 @@ struct Recording: Identifiable, Hashable {
     var hasCustomName: Bool { FileManager.default.fileExists(atPath: nameURL.path) }
     var hasTranscript: Bool { FileManager.default.fileExists(atPath: transcriptURL.path) }
     var hasSummary: Bool { FileManager.default.fileExists(atPath: summaryURL.path) }
+    /// True once the user has changed the summary by hand (marked by a hidden comment in the file).
+    var summaryIsEdited: Bool {
+        (try? String(contentsOf: summaryURL, encoding: .utf8))?.contains(Library.editedMarker) ?? false
+    }
 
     static let stampFormat: DateFormatter = {
         let f = DateFormatter()
@@ -115,7 +119,10 @@ final class Library: ObservableObject {
     ]
 
     @Published var items: [Recording] = []
-    @Published var selection: Recording.ID? { didSet { loadSelected() } }
+    @Published var selection: Recording.ID? {
+        willSet { if editingSummary { saveSummaryDraft() } }
+        didSet { editingSummary = false; loadSelected() }
+    }
     @Published var tab: Tab = .summary
     @Published var transcript = ""
     @Published var summary = ""
@@ -128,6 +135,16 @@ final class Library: ObservableObject {
     @Published var translate = false
     @Published var notice: String?
     @Published var renaming: Recording.ID?  // drives the Rename sheet
+    @Published var editingSummary = false
+    @Published var summaryDraft = ""  // the summary's Markdown while editing, without the hidden header lines
+    @Published var pendingOverwrite: PendingSummary?  // drives "Replace your edited summary?"
+
+    struct PendingSummary: Identifiable {
+        let id: Recording.ID
+        let template: String?
+    }
+
+    nonisolated static let editedMarker = "<!-- edited -->"
     @Published var micName: String?
 
     let dir: URL
@@ -312,7 +329,7 @@ final class Library: ObservableObject {
             if identify && settings.integer(forKey: Prefs.speakerCount) != 1 {
                 findSpeakers(id)
             } else {
-                summarize(id)
+                summarize(id, automatic: true)
             }
         }
     }
@@ -372,7 +389,7 @@ final class Library: ObservableObject {
                 errors[id] = "Speaker detection failed:\n\(failure)"
             }
             if selection == id { loadSelected() }
-            summarize(id)
+            summarize(id, automatic: true)
         }
     }
 
@@ -398,7 +415,7 @@ final class Library: ObservableObject {
             options: .regularExpression)
         saveTranscriptIfEdited()
         log("renamed speaker")
-        summarize(id)
+        summarize(id, automatic: true)
     }
 
     // MARK: Summarize
@@ -411,8 +428,20 @@ final class Library: ObservableObject {
         return UserDefaults.standard.string(forKey: Prefs.summaryTemplate) ?? SummaryTemplate.all[0].id
     }
 
-    func summarize(_ id: Recording.ID, template: String? = nil) {
+    /// `automatic` is for summaries the app starts by itself; those never replace a hand-edited summary.
+    /// Ones the user asks for do, but only after `replaceEdits` confirms it.
+    func summarize(_ id: Recording.ID, template: String? = nil, automatic: Bool = false, replaceEdits: Bool = false) {
         guard !summarizing.contains(id), let r = items.first(where: { $0.id == id }) else { return }
+        if r.summaryIsEdited && !replaceEdits {
+            if automatic {
+                notice = "Your edited summary was kept. Click Summarize to write a new one."
+                log("kept edited summary: \(id)")
+            } else {
+                pendingOverwrite = PendingSummary(id: id, template: template)
+            }
+            return
+        }
+        if selection == id { editingSummary = false }
         let text = (try? String(contentsOf: r.transcriptURL, encoding: .utf8)) ?? ""
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errors[id] = "There is no speech in the transcript to summarize."
@@ -437,6 +466,35 @@ final class Library: ObservableObject {
                 log("summary failed: \(error)")
             }
         }
+    }
+
+    // MARK: Editing the summary
+
+    func beginEditingSummary() {
+        guard let r = selected, !summary.isEmpty else { return }
+        // Hide the hidden header lines (template, edited) from the editor; they are put back on save.
+        summaryDraft = r.displayedSummary(summary)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .drop { $0.hasPrefix("<!--") }
+            .joined(separator: "\n")
+        editingSummary = true
+        log("editing summary")
+    }
+
+    /// Called on every keystroke while editing; writes only real changes.
+    func saveSummaryDraft() {
+        guard let r = selected else { return }
+        let md = "<!-- template: \(templateID(for: r)) -->\n\(Self.editedMarker)\n" + summaryDraft
+        guard md != summary else { return }
+        try? md.write(to: r.summaryURL, atomically: true, encoding: .utf8)
+        summary = md
+    }
+
+    func endEditingSummary() {
+        saveSummaryDraft()
+        editingSummary = false
+        log("finished editing summary")
+        reload()  // an edited "# Title" renames the recording in the timeline
     }
 
     // MARK: Files
@@ -1003,6 +1061,9 @@ struct HelpView: View {
                          + "Earshot summarizes each part first, then summarizes those notes.")
                     para("Transcripts come from speech recognition, so names and technical words can be wrong. "
                          + "You can correct the Transcript tab directly, then click Summarize again.")
+                    para("To fix a summary by hand, click Edit above it, change the text, then click Done. "
+                         + "Changes save as you type. Earshot asks before replacing an edited summary, and never "
+                         + "rewrites one by itself.")
                 }
             }
             .padding(28)
@@ -1273,6 +1334,16 @@ struct ContentView: View {
         } message: {
             Text("The name shows in the timeline and at the top of the summary.")
         }
+        .alert("Replace your edited summary?",
+               isPresented: Binding(get: { lib.pendingOverwrite != nil },
+                                    set: { if !$0 { lib.pendingOverwrite = nil } })) {
+            Button("Replace", role: .destructive) {
+                if let p = lib.pendingOverwrite { lib.summarize(p.id, template: p.template, replaceEdits: true) }
+            }
+            Button("Keep My Edits", role: .cancel) {}
+        } message: {
+            Text("You changed this summary by hand. A new summary replaces your changes, and this can't be undone.")
+        }
         .onChange(of: lib.renaming) {
             newName = lib.items.first { $0.id == lib.renaming }?.title ?? ""
         }
@@ -1529,6 +1600,7 @@ struct RecordingNow: View {
 struct RecordingDetail: View {
     @ObservedObject var lib: Library
     let rec: Recording
+    @StateObject private var editor = RichEditorController()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1619,13 +1691,37 @@ struct RecordingDetail: View {
                         Label(t.name, systemImage: t.icon)
                     }
                     .fixedSize()
-                    .disabled(!rec.hasTranscript)
+                    .disabled(!rec.hasTranscript || lib.editingSummary)
                     .help("Choose a summary format. Picking one writes a new summary in that format.")
                     Spacer()
+                    if rec.summaryIsEdited && !lib.editingSummary {
+                        Label("Edited", systemImage: "pencil.line")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help("You changed this summary by hand. Earshot asks before replacing it.")
+                    }
+                    Button {
+                        lib.editingSummary ? lib.endEditingSummary() : lib.beginEditingSummary()
+                    } label: {
+                        Label(lib.editingSummary ? "Done" : "Edit",
+                              systemImage: lib.editingSummary ? "checkmark" : "pencil")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(lib.editingSummary ? .accentColor : .secondary)
+                    .disabled(lib.summary.isEmpty)
+                    .help(lib.editingSummary ? "Finish editing. Your changes are already saved."
+                                             : "Correct the summary by hand: names, numbers, anything the model got wrong.")
                 }
                 .padding(10)
                 Divider()
-                if lib.summary.isEmpty {
+                if lib.editingSummary {
+                    VStack(spacing: 0) {
+                        FormatBar(editor: editor)
+                        Divider()
+                        RichSummaryEditor(markdown: $lib.summaryDraft, controller: editor)
+                            .onChange(of: lib.summaryDraft) { lib.saveSummaryDraft() }
+                    }
+                } else if lib.summary.isEmpty {
                     VStack(spacing: 12) {
                         Text("No summary yet.").foregroundStyle(.secondary)
                         Button("Summarize") { lib.summarize(rec.id) }.disabled(!rec.hasTranscript)
@@ -1648,6 +1744,48 @@ struct RecordingDetail: View {
             Text(text).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Formatting buttons for the rich summary editor.
+struct FormatBar: View {
+    let editor: RichEditorController
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Menu {
+                Button("Title") { editor.setBlock(.title) }
+                Button("Heading") { editor.setBlock(.heading) }
+                Button("Body") { editor.setBlock(.body) }
+            } label: {
+                Label("Style", systemImage: "textformat.size")
+            }
+            .fixedSize()
+            .help("Make the selected lines a title, a heading or body text")
+            Divider().frame(height: 16).padding(.horizontal, 6)
+            button("bold", "Bold (⌘B)", key: "b") { editor.toggleTrait(.boldFontMask) }
+            button("italic", "Italic (⌘I)", key: "i") { editor.toggleTrait(.italicFontMask) }
+            Divider().frame(height: 16).padding(.horizontal, 6)
+            button("list.bullet", "Bulleted list") { editor.toggleList(.bullet) }
+            button("square", "Action item (checkbox)") { editor.toggleList(.task) }
+            button("checkmark.square", "Done action item") { editor.toggleList(.done) }
+            Spacer()
+            Text("Saves as you type").font(.caption).foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func button(_ symbol: String, _ help: String, key: KeyEquivalent? = nil,
+                        action: @escaping () -> Void) -> some View {
+        let b = Button(action: action) {
+            Image(systemName: symbol).frame(width: 24, height: 20)
+        }
+        .help(help)
+        .accessibilityLabel(help)
+        if let key { b.keyboardShortcut(key, modifiers: .command) } else { b }
     }
 }
 
@@ -1743,7 +1881,7 @@ struct MarkdownView: View {
     enum Block {
         case heading(Int, String)
         case bullet(String)
-        case task(String)
+        case task(String, done: Bool)
         case numbered(String, String)
         case paragraph(String)
         case rule
@@ -1754,8 +1892,11 @@ struct MarkdownView: View {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("<!--") { return nil }
             if line.allSatisfy({ $0 == "-" || $0 == "*" }) && line.count >= 3 { return .rule }
-            for marker in ["- [ ] ", "- [x] ", "* [ ] "] where line.hasPrefix(marker) {
-                return .task(String(line.dropFirst(marker.count)))
+            for marker in ["- [ ] ", "* [ ] "] where line.hasPrefix(marker) {
+                return .task(String(line.dropFirst(marker.count)), done: false)
+            }
+            for marker in ["- [x] ", "- [X] ", "* [x] "] where line.hasPrefix(marker) {
+                return .task(String(line.dropFirst(marker.count)), done: true)
             }
             if line.hasPrefix("#") {
                 let level = line.prefix(while: { $0 == "#" }).count
@@ -1784,9 +1925,9 @@ struct MarkdownView: View {
                         Text("•").foregroundStyle(.secondary)
                         inline(text)
                     }
-                case .task(let text):
+                case .task(let text, let done):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: "square").foregroundStyle(.secondary)
+                        Image(systemName: done ? "checkmark.square" : "square").foregroundStyle(.secondary)
                         inline(text)
                     }
                 case .numbered(let n, let text):

@@ -34,6 +34,7 @@ all on-device, with no account, no cloud and no internet connection.
 | 📝 **Transcribe** | Whisper large-v3-turbo on the GPU: about 45 seconds for a 14-minute call. Editable. |
 | 🗣️ **Speakers** | Labels who spoke when. Click a speaker to rename them everywhere. |
 | ✨ **Summarize** | Nine Plaud-style templates, from meeting minutes to sales calls, with action items. |
+| ✏️ **Edit** | Fix the summary in a rich-text editor: headings, bold, bullets, checkboxes. Edited summaries are never replaced without asking. |
 | 🌍 **Translate** | Turns speech in other languages into English text. |
 | 🗂️ **Timeline** | Every recording by day, named by its summary or by you. |
 | 🧭 **Menu bar** | The ear at the top of the screen: record without opening the window, see the timer, jump to recent recordings. |
@@ -169,6 +170,8 @@ speakers meeting.m4a -n 3       # exactly 3 speakers
   longer recordings are summarized in parts first. Check names and numbers before you share one.
 - **Transcripts** can mishear names and jargon. Correct the Transcript tab, then click
   **Summarize** to rewrite the summary.
+- **Summaries** can be corrected directly: click **Edit** above the summary. Earshot marks it
+  as edited and asks before a new summary replaces it.
 
 ## 🗂️ Project layout
 
@@ -176,6 +179,7 @@ speakers meeting.m4a -n 3       # exactly 3 speakers
 .
 ├── EarshotApp/
 │   ├── Earshot.swift      the whole app: timeline, tabs, recording, speakers, summaries
+│   ├── RichText.swift     the rich summary editor, and Markdown ↔ formatted text
 │   ├── Info.plist         name, icon, microphone permission text, file types it opens
 │   └── build.sh           builds and installs the app and the scripts
 ├── scripts/

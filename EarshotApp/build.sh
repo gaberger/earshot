@@ -14,7 +14,7 @@ build=$(mktemp -d)
 trap 'rm -rf "$build"' EXIT
 
 swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 \
-  Earshot.swift -o "$build/Earshot"
+  Earshot.swift RichText.swift -o "$build/Earshot"
 
 # The app icon is a layered Icon Composer file. actool turns it into Assets.car (Liquid Glass
 # icon for macOS 26) plus Earshot.icns (fallback), as Apple's guidelines ask.
