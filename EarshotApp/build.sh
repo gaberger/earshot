@@ -29,6 +29,8 @@ cp "$build/Earshot" "$APP/Contents/MacOS/Earshot"
 cp "$build/Assets.car" "$build/Earshot.icns" "$APP/Contents/Resources/"
 # Menu bar artwork (a template image: macOS tints it for light and dark menu bars).
 cp ../assets/menubar.svg "$APP/Contents/Resources/"
+# The app runs its own copy of the helpers, so an install from the DMG needs nothing in ~/.local/bin.
+install -m 755 ../scripts/transcribe ../scripts/speakers "$APP/Contents/Resources/"
 
 # Ad-hoc signature so macOS remembers the microphone permission for this app.
 codesign --force --deep --sign - "$APP"

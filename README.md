@@ -129,10 +129,28 @@ bash EarshotApp/build.sh
 ```
 
 This installs `Earshot.app` in `~/Applications` and the helper scripts in `~/.local/bin`.
+The app carries its own copy of the scripts too, and runs that one.
 The app icon is compiled from `assets/Earshot.icon` with Apple's `actool`, so macOS draws it
 with Liquid Glass, as the [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/app-icons) ask.
-The app is ad-hoc signed, so it runs only on the Mac that built it. The first speaker
+The app is ad-hoc signed, not notarized. The first speaker
 detection downloads `sherpa-onnx` from PyPI into uv's cache.
+
+</details>
+
+<details>
+<summary><b>Or install from the disk image</b></summary>
+
+Every push to `main` builds `Earshot.dmg`: open the latest
+[Build run](https://github.com/gaberger/earshot/actions/workflows/build.yml) and download the
+**Earshot** artifact. To make one yourself after building:
+
+```bash
+bash EarshotApp/make-dmg.sh      # → Earshot.dmg
+```
+
+Open the image and drag **Earshot** onto **Applications**. You still need the tools and models
+from steps 1 and 2. The app isn't notarized, so the first time, right-click it in Applications
+and choose **Open**.
 
 </details>
 
@@ -182,7 +200,8 @@ speakers meeting.m4a -n 3       # exactly 3 speakers
 │   ├── RichText.swift     the rich summary editor, and Markdown ↔ formatted text
 │   ├── Tests/             editor tests in a real text view: bash EarshotApp/Tests/run.sh
 │   ├── Info.plist         name, icon, microphone permission text, file types it opens
-│   └── build.sh           builds and installs the app and the scripts
+│   ├── build.sh           builds and installs the app and the scripts
+│   └── make-dmg.sh        packs the built app into Earshot.dmg (drag to Applications)
 ├── scripts/
 │   ├── transcribe         whisper.cpp wrapper
 │   └── speakers           speaker detection (Python, run by uv)

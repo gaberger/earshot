@@ -29,10 +29,10 @@ jobs:
       - name: Run tests
         run: bash EarshotApp/Tests/run.sh
 
-      - name: Zip the app
-        run: ditto -c -k --keepParent "$HOME/Applications/Earshot.app" Earshot.zip
+      - name: Make the disk image
+        run: bash EarshotApp/make-dmg.sh "$HOME/Applications/Earshot.app" Earshot.dmg
 
       - uses: actions/upload-artifact@v7
         with:
           name: Earshot
-          path: Earshot.zip
+          path: Earshot.dmg

@@ -335,8 +335,13 @@ final class Library: ObservableObject {
         }
     }
 
+    /// A helper script: the copy inside the app (so a DMG install works on its own), else ~/.local/bin.
     private func bin(_ name: String) -> String {
-        home.appendingPathComponent(".local/bin/\(name)").path
+        if let bundled = Bundle.main.url(forResource: name, withExtension: nil),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return bundled.path
+        }
+        return home.appendingPathComponent(".local/bin/\(name)").path
     }
 
     /// Runs a helper script off the main thread. Returns nil on success, or the last lines of its error output.
