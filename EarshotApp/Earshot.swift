@@ -415,7 +415,8 @@ final class Library: ObservableObject {
         return names
     }
 
-    /// Renames a speaker throughout the transcript, saves it, and re-summarizes so the summary uses the name.
+    /// Renames a speaker throughout the transcript, then in the summary. The summary is changed in place,
+    /// not written again by the model, so it is instant, keeps hand edits, and loses no rename.
     func renameSpeaker(_ old: String, to new: String) {
         let name = new.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ":", with: "")
         guard let id = selection, !name.isEmpty, name != old else { return }
@@ -425,7 +426,35 @@ final class Library: ObservableObject {
             options: .regularExpression)
         saveTranscriptIfEdited()
         log("renamed speaker")
-        summarize(id, automatic: true)
+        if summarizing.contains(id) {
+            // That summary was started from the old transcript; rename in it once it is written.
+            pendingRenames[id, default: []].append((old, name))
+        } else {
+            renameInSummary(id, renames: [(old, name)])
+        }
+    }
+
+    /// Speaker renames made while a summary was being written, applied when it is done.
+    private var pendingRenames: [Recording.ID: [(old: String, new: String)]] = [:]
+
+    private func renameInSummary(_ id: Recording.ID, renames: [(old: String, new: String)]) {
+        guard let r = items.first(where: { $0.id == id }),
+              let md = try? String(contentsOf: r.summaryURL, encoding: .utf8) else { return }
+        if selection == id && editingSummary { endEditingSummary() }
+        let renamed = renames.reduce(md) { Self.replacingName($1.old, with: $1.new, in: $0) }
+        guard renamed != md else { return }
+        try? renamed.write(to: r.summaryURL, atomically: true, encoding: .utf8)
+        log("renamed speaker in summary")
+        reload()  // the name may be in the summary's title
+        if selection == id { summary = renamed }
+    }
+
+    /// Replaces a whole name: "Speaker 1" matches "Speaker 1's" but not "Speaker 10".
+    nonisolated static func replacingName(_ old: String, with new: String, in text: String) -> String {
+        text.replacingOccurrences(
+            of: #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: old) + #"(?![\p{L}\p{N}])"#,
+            with: NSRegularExpression.escapedTemplate(for: new),
+            options: .regularExpression)
     }
 
     // MARK: Summarize
@@ -470,8 +499,11 @@ final class Library: ObservableObject {
                 log("summary finished: \(md.count) chars")
                 reload()  // the summary's title renames the recording in the timeline
                 if selection == id { summary = md }
+                if let renames = pendingRenames.removeValue(forKey: id) { renameInSummary(id, renames: renames) }
             } catch {
                 summarizing.remove(id)
+                // The earlier summary is still there, with the old names.
+                if let renames = pendingRenames.removeValue(forKey: id) { renameInSummary(id, renames: renames) }
                 errors[id] = "Summary failed: \(Summarizer.describe(error))"
                 log("summary failed: \(error)")
             }
@@ -1921,7 +1953,7 @@ struct SpeakerBar: View {
                                         .keyboardShortcut(.defaultAction)
                                         .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                                 }
-                                Text("The summary is rewritten with the new name.")
+                                Text("The summary uses the new name too.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             .padding(14)
