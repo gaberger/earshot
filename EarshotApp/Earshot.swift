@@ -4,6 +4,7 @@
 
 import AVFoundation
 import AppKit
+import Combine
 import Darwin
 import FoundationModels
 import IOKit
@@ -929,17 +930,25 @@ struct MenuBarLabel: View {
         return img
     }()
 
+    // The label is drawn into the status item as an image, not hosted live. A TimelineView here
+    // re-renders on every redraw, which loops forever and hangs the app; a plain timer ticks once a second.
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
     var body: some View {
-        if let start = lib.startedAt {
-            TimelineView(.periodic(from: start, by: 1)) { ctx in
+        Group {
+            if let start = lib.startedAt {
                 HStack(spacing: 4) {
                     Image(systemName: "record.circle")
-                    Text(elapsed(from: start, to: ctx.date)).monospacedDigit()
+                    Text(elapsed(from: start, to: now)).monospacedDigit()
                 }
+                .accessibilityLabel("Earshot is recording")
+            } else {
+                Image(nsImage: Self.ear).accessibilityLabel("Earshot")
             }
-            .accessibilityLabel("Earshot is recording")
-        } else {
-            Image(nsImage: Self.ear).accessibilityLabel("Earshot")
+        }
+        .onReceive(tick) { date in
+            if lib.startedAt != nil { now = date }
         }
     }
 }
