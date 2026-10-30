@@ -1,4 +1,4 @@
-// Transcribe — a small Mac app over the local `transcribe` script (whisper.cpp),
+// Earshot — a small Mac app over the local `transcribe` script (whisper.cpp),
 // with summaries from Apple's on-device model. Everything runs on this Mac;
 // nothing is sent anywhere.
 
@@ -10,11 +10,11 @@ import IOKit
 import SwiftUI
 
 @main
-struct TranscribeApp: App {
+struct EarshotApp: App {
     @StateObject private var library = Library()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: MainWindow.id) {
             ContentView(lib: library)
                 .frame(minWidth: 1180, minHeight: 560)
                 // Files opened from Finder ("Open With", or dropped on the Dock icon).
@@ -26,7 +26,7 @@ struct TranscribeApp: App {
             CommandGroup(replacing: .help) { HelpMenuItem() }
         }
 
-        Window("How Transcribe Works", id: HelpView.windowID) {
+        Window("How Earshot Works", id: HelpView.windowID) {
             HelpView()
         }
         .defaultSize(width: 640, height: 720)
@@ -34,7 +34,19 @@ struct TranscribeApp: App {
         Settings {
             SettingsView()
         }
+
+        // Quick access from the menu bar, like Plaud: record, see the timer, open recent recordings.
+        MenuBarExtra {
+            MenuBarPanel(lib: library)
+        } label: {
+            MenuBarLabel(lib: library)
+        }
+        .menuBarExtraStyle(.window)
     }
+}
+
+enum MainWindow {
+    static let id = "main"
 }
 
 // MARK: - Model
@@ -464,7 +476,7 @@ final class Library: ObservableObject {
     }
 
     func log(_ message: String) {
-        let url = home.appendingPathComponent("Library/Logs/Transcribe.log")
+        let url = home.appendingPathComponent("Library/Logs/Earshot.log")
         let line = "\(Date().formatted(.iso8601)) \(message)\n"
         if let h = try? FileHandle(forWritingTo: url) {
             h.seekToEndOfFile()
@@ -488,7 +500,7 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
     let usedFallback: Bool
     private let session = AVCaptureSession()
     private let output = AVCaptureAudioFileOutput()
-    private let queue = DispatchQueue(label: "Transcribe.mic")
+    private let queue = DispatchQueue(label: "Earshot.mic")
     private let finished: (MicRecorder, Error?) -> Void
 
     static func inputs() -> [AVCaptureDevice] {
@@ -578,7 +590,7 @@ struct SettingsView: View {
             } header: {
                 Text("Recording")
             } footer: {
-                Text("Transcribe records from this microphone. \"System default\" follows the input chosen in "
+                Text("Earshot records from this microphone. \"System default\" follows the input chosen in "
                      + "System Settings → Sound. The audio stays on this Mac.")
                     .foregroundStyle(.secondary)
             }
@@ -767,8 +779,142 @@ struct HelpMenuItem: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("How Transcribe Works") { openWindow(id: HelpView.windowID) }
+        Button("How Earshot Works") { openWindow(id: HelpView.windowID) }
             .keyboardShortcut("?", modifiers: .command)
+    }
+}
+
+/// The app's own icon, as macOS draws it (Liquid Glass and all). Apple's guidelines put the
+/// logo in places like About and welcome screens, not repeated through the interface.
+struct AppIcon: View {
+    let size: CGFloat
+    var body: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .accessibilityLabel("Earshot")
+    }
+}
+
+// MARK: - Menu bar
+
+/// The menu bar item: the Earshot ear, or a red dot and the timer while recording.
+struct MenuBarLabel: View {
+    @ObservedObject var lib: Library
+
+    static let ear: NSImage = {
+        let img = Bundle.main.url(forResource: "menubar", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+            ?? NSImage(systemSymbolName: "ear", accessibilityDescription: "Earshot")!
+        img.size = NSSize(width: 18, height: 18)
+        img.isTemplate = true  // macOS colors it to match a light or dark menu bar
+        return img
+    }()
+
+    var body: some View {
+        if let start = lib.startedAt {
+            TimelineView(.periodic(from: start, by: 1)) { ctx in
+                HStack(spacing: 4) {
+                    Image(systemName: "record.circle")
+                    Text(elapsed(from: start, to: ctx.date)).monospacedDigit()
+                }
+            }
+            .accessibilityLabel("Earshot is recording")
+        } else {
+            Image(nsImage: Self.ear).accessibilityLabel("Earshot")
+        }
+    }
+}
+
+/// The panel that opens from the menu bar.
+struct MenuBarPanel: View {
+    @ObservedObject var lib: Library
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                AppIcon(size: 28)
+                Text("Earshot").font(.headline)
+                Spacer()
+                Label("On this Mac", systemImage: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button(action: lib.toggleRecording) {
+                HStack {
+                    if let start = lib.startedAt {
+                        Image(systemName: "stop.fill")
+                        TimelineView(.periodic(from: start, by: 1)) { ctx in
+                            Text("Stop  " + elapsed(from: start, to: ctx.date)).monospacedDigit()
+                        }
+                    } else {
+                        Image(systemName: "mic.fill")
+                        Text("Record")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(lib.recording ? .red : .accentColor)
+            .controlSize(.large)
+
+            if lib.recording {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(lib.micName ?? "Microphone", systemImage: "mic")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TimelineView(.animation(minimumInterval: 0.08)) { _ in
+                        LevelBar(decibels: lib.micLevel())
+                    }
+                }
+            }
+
+            if !lib.items.isEmpty {
+                Divider()
+                Text("Recent").font(.caption).foregroundStyle(.secondary)
+                ForEach(lib.items.prefix(5)) { r in
+                    Button { open(r.id) } label: {
+                        HStack {
+                            Text(r.title).lineLimit(1)
+                            Spacer()
+                            Text(r.date.formatted(date: .omitted, time: .shortened))
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Divider()
+            HStack {
+                Button("Open Earshot") { open(nil) }
+                Spacer()
+                SettingsLink { Text("Settings…") }
+                Button("Quit") { NSApp.terminate(nil) }
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+
+    private func open(_ id: Recording.ID?) {
+        if let id {
+            lib.selection = id
+            lib.tab = .summary
+        }
+        // Bring the existing window forward; open one only if it was closed.
+        if let window = NSApp.windows.first(where: {
+            $0.identifier?.rawValue.contains(MainWindow.id) == true && $0.isVisible
+        }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            openWindow(id: MainWindow.id)
+        }
+        NSApp.activate()
     }
 }
 
@@ -780,11 +926,11 @@ struct HelpButton: View {
             Label("Privacy", systemImage: "lock.shield")
         }
         .labelStyle(.titleAndIcon)
-        .help("How Transcribe works, and why everything stays on this Mac (⌘?).")
+        .help("How Earshot works, and why everything stays on this Mac (⌘?).")
     }
 }
 
-/// The "How Transcribe Works" window: what runs where, and what never leaves the Mac.
+/// The "How Earshot Works" window: what runs where, and what never leaves the Mac.
 struct HelpView: View {
     static let windowID = "help"
 
@@ -792,12 +938,10 @@ struct HelpView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(spacing: 14) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.green)
+                    AppIcon(size: 72)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Everything stays on this Mac").font(.title.bold())
-                        Text("Transcribe has no account, no cloud service and no internet connection. "
+                        Text("Earshot has no account, no cloud service and no internet connection. "
                              + "Your recordings, transcripts and summaries are made and kept on this computer.")
                             .foregroundStyle(.secondary)
                     }
@@ -820,7 +964,7 @@ struct HelpView: View {
                          + "does not invent words in quiet stretches.")
                     item("Summaries",
                          "Apple's on-device Foundation Model, part of Apple Intelligence. It runs inside macOS on this Mac. "
-                         + "Transcribe never uses Apple's Private Cloud Compute, the version that runs on Apple's servers.")
+                         + "Earshot never uses Apple's Private Cloud Compute, the version that runs on Apple's servers.")
                     item("Audio conversion",
                          "ffmpeg, which changes any audio or video file into the format Whisper reads.")
                 }
@@ -829,7 +973,7 @@ struct HelpView: View {
                     item("Recordings and results", "~/Recordings/whisper. For each recording: the audio, "
                          + ".txt (transcript), .srt (with timestamps) and .summary.md (summary).")
                     item("Imported files", "Linked into the timeline, not copied. The original stays where it was.")
-                    item("Activity log", "~/Library/Logs/Transcribe.log. It records clicks, file names and job results, never what was said.")
+                    item("Activity log", "~/Library/Logs/Earshot.log. It records clicks, file names and job results, never what was said.")
                     para("Rename a recording with the pencil next to its title, by double-clicking the title, or with "
                          + "right-click → Rename. Until you name it, it takes the title Apple's model gives the summary.")
                     para("Delete a recording with right-click → Move to Trash. That removes the audio, transcript and summary.")
@@ -843,6 +987,8 @@ struct HelpView: View {
                     item("Copy", "Copies the open tab, transcript or summary. ⇧⌘C.")
                     item("Finder", "Shows the recording's files in Finder.")
                     item("Privacy", "Opens this page. ⌘?.")
+                    item("Menu bar", "The ear at the top of your screen records without opening the window. "
+                         + "While recording it shows the timer. It also lists your five latest recordings.")
                     item("Settings", "Choose which microphone to record from. While recording, the screen "
                          + "shows the microphone's name and a level bar, so you can see it hears you. ⌘,.")
                     item("CPU · GPU · MEM", "How hard the Mac is working. CPU and memory count this app and Whisper. "
@@ -853,7 +999,7 @@ struct HelpView: View {
                     para("Summaries need macOS 26.4 or later with Apple Intelligence turned on, in System Settings → "
                          + "Apple Intelligence & Siri.")
                     para("Apple's on-device model reads about 15 minutes of speech at a time. For longer recordings, "
-                         + "Transcribe summarizes each part first, then summarizes those notes.")
+                         + "Earshot summarizes each part first, then summarizes those notes.")
                     para("Transcripts come from speech recognition, so names and technical words can be wrong. "
                          + "You can correct the Transcript tab directly, then click Summarize again.")
                 }
@@ -1090,8 +1236,14 @@ struct ContentView: View {
                 } else if let r = lib.selected {
                     RecordingDetail(lib: lib, rec: r)
                 } else {
-                    ContentUnavailableView("No recording selected", systemImage: "waveform",
-                                           description: Text("Press Record, or drop an audio or video file here."))
+                    ContentUnavailableView {
+                        VStack(spacing: 10) {
+                            AppIcon(size: 96)
+                            Text("Earshot")
+                        }
+                    } description: {
+                        Text("Press Record, or drop an audio or video file here.\nEverything stays on this Mac.")
+                    }
                 }
             }
             .overlay(alignment: .bottom) {
@@ -1104,7 +1256,7 @@ struct ContentView: View {
                 }
             }
         }
-        .navigationTitle("Transcribe")
+        .navigationTitle("Earshot")
         .toolbar { HeaderControls(lib: lib) }
         .alert("Rename Recording", isPresented: Binding(get: { lib.renaming != nil },
                                                         set: { if !$0 { lib.renaming = nil } })) {
