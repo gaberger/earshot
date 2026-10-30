@@ -789,7 +789,8 @@ struct HelpMenuItem: View {
 struct AppIcon: View {
     let size: CGFloat
     var body: some View {
-        Image(nsImage: NSApp.applicationIconImage)
+        // Ask for the icon the way Finder does, so the layered Liquid Glass icon renders as in the Dock.
+        Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
             .resizable()
             .interpolation(.high)
             .frame(width: size, height: size)
@@ -1417,6 +1418,16 @@ struct Timeline: View {
             }
         }
         .onDeleteCommand { if let r = lib.selected { lib.moveToTrash(r) } }
+        // One quiet brand mark at the top of the sidebar, as many Mac apps do.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack(spacing: 8) {
+                AppIcon(size: 26)
+                Text("Earshot").font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
         .overlay {
             if lib.items.isEmpty {
                 ContentUnavailableView("No recordings yet", systemImage: "mic",

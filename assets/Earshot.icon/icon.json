@@ -11,7 +11,7 @@
         { "image-name" : "ear.svg", "name" : "ear", "glass" : true }
       ],
       "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
-      "translucency" : { "enabled" : true, "value" : 0.3 }
+      "translucency" : { "enabled" : true, "value" : 0.55 }
     },
     {
       "layers" : [
@@ -20,7 +20,7 @@
         { "image-name" : "wave-far.svg", "name" : "wave-far", "glass" : true, "opacity" : 0.35 }
       ],
       "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
-      "translucency" : { "enabled" : true, "value" : 0.3 }
+      "translucency" : { "enabled" : true, "value" : 0.55 }
     }
   ],
   "supported-platforms" : {
