@@ -1392,7 +1392,8 @@ enum Summarizer {
                 g = try await session.respond(to: material, generating: GeneratedSummary.self).content
                 break
             } catch LanguageModelSession.GenerationError.exceededContextWindowSize where attempt < attempts {
-                target = target * 2 / 3
+                // Shrink from the material's measured size: it may already be under target*2/3, so reduce would no-op.
+                target = min(target, try await model.tokenCount(for: material)) * 2 / 3
             }
         }
         guard let g else { throw AppError(message: "This recording is too long to summarize on this Mac.") }
