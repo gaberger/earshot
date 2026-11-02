@@ -1,5 +1,6 @@
 # Compiles Earshot for macOS and runs the editor tests on every push and pull request.
-# Pushing a tag like v1.2.0 (matching VERSION) also publishes a GitHub Release with the disk image.
+# Pushing a tag like v1.2.0 (matching VERSION) also publishes a GitHub Release with the disk image,
+# using the hand-written notes in docs/releases/<version>.md (the build fails if that file is missing).
 name: Build
 
 on:
@@ -38,6 +39,10 @@ jobs:
             echo "::error::Tag ${GITHUB_REF#refs/tags/} does not match VERSION ($version)"
             exit 1
           fi
+          if [[ "$GITHUB_REF" == refs/tags/v* && ! -f "docs/releases/$version.md" ]]; then
+            echo "::error::Missing release notes: docs/releases/$version.md"
+            exit 1
+          fi
 
       - name: Build and package Earshot.app
         run: bash EarshotApp/build.sh
@@ -60,6 +65,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: docs/releases
+
       - uses: actions/download-artifact@v8
         with:
           name: Earshot-${{ needs.macos.outputs.version }}
@@ -69,4 +78,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" Earshot-*.dmg --repo "$GITHUB_REPOSITORY" \
-            --title "Earshot ${{ needs.macos.outputs.version }}" --generate-notes
+            --title "Earshot ${{ needs.macos.outputs.version }}" \
+            --notes-file "docs/releases/${{ needs.macos.outputs.version }}.md"
