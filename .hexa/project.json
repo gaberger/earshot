@@ -1,0 +1,10 @@
+{
+  "analyze": {
+    "exclude": []
+  },
+  "createdAt": "2026-11-02T21:33:27.681315+00:00",
+  "hexVersion": "26.10.0",
+  "id": "4126913c-20f3-43f2-8b65-53fab5710edf",
+  "lifecycle_enforcement": "mandatory",
+  "name": "earshot"
+}
