@@ -6,7 +6,8 @@
       "files": [
         "docs/adrs/ADR-2611021633-token-budgeted-summary-chunking.md",
         "/Users/gary/.claude-profiles/claude-bedrock-gary/config/projects/-Volumes-Crucial-projects-earshot/memory/always-use-hexa.md",
-        "/Users/gary/.claude-profiles/claude-bedrock-gary/config/projects/-Volumes-Crucial-projects-earshot/memory/MEMORY.md"
+        "/Users/gary/.claude-profiles/claude-bedrock-gary/config/projects/-Volumes-Crucial-projects-earshot/memory/MEMORY.md",
+        "docs/releases/1.0.1.md"
       ],
       "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh",
       "pid": 5570,
@@ -24,7 +25,7 @@
           "title": "Summarizer uses token budgets, chunker, caps, overflow retries; build.sh compiles Chunking.swift"
         }
       ],
-      "updated": "2026-11-02T21:41:25.540748+00:00"
+      "updated": "2026-11-02T21:51:16.110456+00:00"
     }
   }
 }
