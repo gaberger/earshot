@@ -74,3 +74,19 @@ Gate: the app typechecks with all its sources and `bash EarshotApp/Tests/run.sh`
 - FoundationModels: `SystemLanguageModel.contextSize`, `SystemLanguageModel.tokenCount(for:)`,
   `GenerationOptions.maximumResponseTokens`,
   `LanguageModelSession.GenerationError.exceededContextWindowSize`
+
+## Evidence
+
+`cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2` at 88e8a2e with uncommitted changes on 2026-11-02 21:40 UTC:
+
+```text
+PASS a throwing counter propagates its error
+All chunking tests passed
+```
+
+`cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2` at 88e8a2e with uncommitted changes on 2026-11-02 21:41 UTC:
+
+```text
+PASS a throwing counter propagates its error
+All chunking tests passed
+```
