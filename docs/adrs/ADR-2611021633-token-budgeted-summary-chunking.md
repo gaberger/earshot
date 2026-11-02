@@ -90,3 +90,10 @@ All chunking tests passed
 PASS a throwing counter propagates its error
 All chunking tests passed
 ```
+
+`cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2` at 1bccd56 with uncommitted changes on 2026-11-02 21:51 UTC:
+
+```text
+PASS a throwing counter propagates its error
+All chunking tests passed
+```
