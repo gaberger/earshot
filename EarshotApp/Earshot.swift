@@ -1338,10 +1338,11 @@ enum Summarizer {
     // On-device only. Do not switch this to PrivateCloudComputeLanguageModel: that one runs on Apple's servers.
     static let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
 
-    // The on-device model reads about 4,000 tokens at once (~1.2 tokens per spoken word), and the
-    // summary's schema takes some of that, so longer transcripts are boiled down to notes first.
-    static let maxWords = 1_100
-    static let chunkWords = 900
+    // Budgets are measured in the model's own tokens: its context size, minus the instructions,
+    // the schema, room for the response and a safety margin. A transcript over budget is split by
+    // TokenChunker and boiled down to notes, round by round, until it fits the final pass.
+    static let notesReserve = 400
+    static let summaryReserve = 1_200
 
     static let notesInstructions = """
         You take notes on one part of a speech-to-text transcript. Lines may start with a speaker name. \
@@ -1368,21 +1369,73 @@ enum Summarizer {
         var material = text.replacingOccurrences(of: #"(?m)^\[\d\d:\d\d:\d\d\] "#, with: "",
                                                  options: .regularExpression)
         let speakers = Library.speakerNames(in: text)
-        var rounds = 0
-        while wordCount(material) > maxWords && rounds < 4 {
-            let words = material.split(whereSeparator: \.isWhitespace)
-            var notes: [String] = []
-            for start in stride(from: 0, to: words.count, by: chunkWords) {
-                let chunk = words[start..<min(start + chunkWords, words.count)].joined(separator: " ")
-                let session = LanguageModelSession(model: model, instructions: notesInstructions)
-                notes.append(try await session.respond(to: chunk).content)
+
+        let context = model.contextSize
+        let margin = max(64, context / 20)
+        let notesBudget = context - (try await model.tokenCount(for: Instructions(notesInstructions)))
+            - notesReserve - margin
+        let finalBudget = context
+            - (try await model.tokenCount(for: Instructions(instructions(for: template))))
+            - (try await model.tokenCount(for: GeneratedSummary.generationSchema))
+            - summaryReserve - margin
+        if notesBudget < 200 || finalBudget < 200 {
+            throw AppError(message: "Apple's on-device model has too little room to summarize on this Mac.")
+        }
+
+        var target = finalBudget
+        let attempts = 3
+        var g: GeneratedSummary?
+        for attempt in 1...attempts {
+            material = try await reduce(material, to: target, notesBudget: notesBudget)
+            let session = LanguageModelSession(model: model, instructions: instructions(for: template))
+            do {
+                g = try await session.respond(to: material, generating: GeneratedSummary.self).content
+                break
+            } catch LanguageModelSession.GenerationError.exceededContextWindowSize where attempt < attempts {
+                target = target * 2 / 3
             }
-            material = notes.joined(separator: "\n")
+        }
+        guard let g else { throw AppError(message: "This recording is too long to summarize on this Mac.") }
+        return render(g, template: template, date: date, seconds: seconds, speakers: speakers)
+    }
+
+    /// Boils material down to notes, round by round, until it fits target tokens. Each chunk fits
+    /// notesBudget, so no request is oversized; a round that does not shrink the material fails.
+    private static func reduce(_ material: String, to target: Int, notesBudget: Int) async throws -> String {
+        var material = material
+        var tokens = try await model.tokenCount(for: material)
+        var rounds = 0
+        while tokens > target {
+            guard rounds < 6 else { throw AppError(message: "This recording is too long to summarize on this Mac.") }
+            let chunks = try await TokenChunker.split(material, budget: notesBudget,
+                                                      count: { try await model.tokenCount(for: $0) })
+            var notes: [String] = []
+            for chunk in chunks { notes.append(try await self.notes(for: chunk, budget: notesBudget)) }
+            let next = notes.joined(separator: "\n")
+            let nextTokens = try await model.tokenCount(for: next)
+            guard nextTokens < tokens else {
+                throw AppError(message: "This recording is too long to summarize on this Mac.")
+            }
+            material = next
+            tokens = nextTokens
             rounds += 1
         }
-        let session = LanguageModelSession(model: model, instructions: instructions(for: template))
-        let g = try await session.respond(to: material, generating: GeneratedSummary.self).content
-        return render(g, template: template, date: date, seconds: seconds, speakers: speakers)
+        return material
+    }
+
+    /// Notes on one chunk. If the model still finds it too long, halves it and tries each half.
+    private static func notes(for chunk: String, budget: Int, depth: Int = 0) async throws -> String {
+        let session = LanguageModelSession(model: model, instructions: notesInstructions)
+        do {
+            return try await session.respond(to: chunk,
+                                             options: GenerationOptions(maximumResponseTokens: notesReserve)).content
+        } catch LanguageModelSession.GenerationError.exceededContextWindowSize where depth < 3 {
+            let halves = try await TokenChunker.split(chunk, budget: max(1, budget / 2),
+                                                      count: { try await model.tokenCount(for: $0) })
+            var parts: [String] = []
+            for half in halves { parts.append(try await notes(for: half, budget: budget / 2, depth: depth + 1)) }
+            return parts.joined(separator: "\n")
+        }
     }
 
     /// Turns the model's fields into the Markdown the Summary tab shows and the .summary.md file keeps.
@@ -1414,8 +1467,6 @@ enum Summarizer {
         return md
     }
 
-    static func wordCount(_ s: String) -> Int { s.split(whereSeparator: \.isWhitespace).count }
-
     static func describe(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {
         case .appleIntelligenceNotEnabled:
@@ -1430,7 +1481,10 @@ enum Summarizer {
     }
 
     static func describe(_ error: Error) -> String {
-        (error as? AppError)?.message ?? error.localizedDescription
+        if case LanguageModelSession.GenerationError.exceededContextWindowSize = error {
+            return "The transcript is too long for Apple's on-device model, even in parts."
+        }
+        return (error as? AppError)?.message ?? error.localizedDescription
     }
 }
 
