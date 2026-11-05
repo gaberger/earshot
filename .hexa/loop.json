@@ -26,6 +26,40 @@
         }
       ],
       "updated": "2026-11-02T21:51:16.110456+00:00"
+    },
+    "f1d3efd1-a9d0-47b4-9b5e-c875df1df171": {
+      "adr": "ADR-2611051236",
+      "files": [
+        "docs/adrs/ADR-2611051236-end-of-meeting-detection.md",
+        "EarshotApp/Tests/EndOfMeetingTests.swift"
+      ],
+      "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-05T18:03:30.297664+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh | tail -3 && grep -c \"EndOfMeeting.swift\" build.sh",
+        "stage": "build"
+      },
+      "pid": 53748,
+      "pid_start": null,
+      "stage": "done",
+      "tasks": [
+        {
+          "done_at": "2026-11-05T18:01:44.048847+00:00",
+          "status": "done",
+          "title": "EndOfMeeting.swift detector passes the tests"
+        },
+        {
+          "done_at": "2026-11-05T18:03:21.519387+00:00",
+          "status": "done",
+          "title": "Library samples the level, warns, stops; keepRecording"
+        },
+        {
+          "done_at": "2026-11-05T18:05:11.434971+00:00",
+          "status": "done",
+          "title": "UI: countdown banner, Settings picker, help; build.sh"
+        }
+      ],
+      "updated": "2026-11-05T18:05:23.724232+00:00"
     }
   }
 }
