@@ -29,7 +29,7 @@ all on-device, with no account, no cloud and no internet connection.
 
 | | |
 |---|---|
-| 🎙️ **Record** | One click to record from the microphone you choose, with a live level meter and timer. |
+| 🎙️ **Record** | One click to record from the microphone you choose, with a live level meter and timer. It stops by itself after a quiet spell, and warns you first. |
 | 📂 **Import** | Drag in any audio or video file, or right-click it in Finder → **Open With → Earshot**. |
 | 📝 **Transcribe** | Whisper large-v3-turbo on the GPU: about 45 seconds for a 14-minute call. Editable. |
 | 🗣️ **Speakers** | Labels who spoke when. Click a speaker to rename them everywhere. |

@@ -323,7 +323,7 @@ final class Library: ObservableObject {
     private func autoStop() {
         let minutes = Int((Prefs.autoStopSeconds() / 60).rounded())
         log("recording stopped automatically after \(minutes) min of silence")
-        notice = "Stopped automatically: no one spoke for \(minutes) minutes. Start a new recording to carry on."
+        notice = "Stopped automatically after a long quiet spell. You can change this in Settings (⌘,)."
         stopRecording()
     }
 
@@ -754,6 +754,7 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
 
 struct SettingsView: View {
     @AppStorage(MicRecorder.settingKey) private var microphoneID = ""
+    @AppStorage(Prefs.autoStopMinutes) private var autoStopMinutes = 5
     @AppStorage(Prefs.identifySpeakers) private var identifySpeakers = true
     @AppStorage(Prefs.speakerCount) private var speakerCount = 0
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
@@ -776,11 +777,22 @@ struct SettingsView: View {
                           systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
+                Picker("Stop when quiet", selection: $autoStopMinutes) {
+                    Text("Never").tag(0)
+                    Text("3 minutes").tag(3)
+                    Text("5 minutes").tag(5)
+                    Text("10 minutes").tag(10)
+                    Text("15 minutes").tag(15)
+                    Text("30 minutes").tag(30)
+                }
             } header: {
                 Text("Recording")
             } footer: {
                 Text("Earshot records from this microphone. \"System default\" follows the input chosen in "
-                     + "System Settings → Sound. The audio stays on this Mac.")
+                     + "System Settings → Sound. The audio stays on this Mac. "
+                     + "Earshot stops by itself after this long with no one speaking, and warns you for the last "
+                     + "30 seconds first. It hears the room through this microphone, so a call you listen to on "
+                     + "headphones sounds one-sided: choose a longer time or Never for those.")
                     .foregroundStyle(.secondary)
             }
 
@@ -1109,6 +1121,13 @@ struct MenuBarPanel: View {
                     TimelineView(.animation(minimumInterval: 0.08)) { _ in
                         LevelBar(decibels: lib.micLevel())
                     }
+                    if let s = lib.endingIn {
+                        Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Button("Keep recording") { lib.keepRecording() }
+                            .controlSize(.small)
+                    }
                 }
             }
 
@@ -1229,6 +1248,10 @@ struct HelpView: View {
 
                 section("The header bar", "menubar.rectangle") {
                     item("Record / Stop", "Starts and stops the microphone. The timer shows how long it has recorded. ⌘R.")
+                    item("Automatic stop", "If no one speaks for a while, Earshot stops recording by itself. "
+                         + "It counts down for 30 seconds first, and Keep recording carries on. "
+                         + "Change the time, or turn it off, in Settings. A call you hear on headphones sounds quiet "
+                         + "to the microphone, so choose a longer time for those.")
                     item("Import", "Transcribe an audio or video file you already have. You can also drag files into the window. ⌘O.")
                     item("Translate", "When on, speech in another language is written in English.")
                     item("Summarize", "Writes a new summary of the selected recording.")
@@ -1852,8 +1875,17 @@ struct RecordingNow: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
-            Text("Recording. Click Stop when you finish, and the text appears here.")
-                .foregroundStyle(.secondary)
+            if let s = lib.endingIn {
+                VStack(spacing: 8) {
+                    Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
+                        .foregroundStyle(.orange)
+                    Button("Keep recording") { lib.keepRecording() }
+                        .buttonStyle(.bordered)
+                }
+            } else {
+                Text("Recording. Click Stop when you finish, and the text appears here.")
+                    .foregroundStyle(.secondary)
+            }
             Button(action: lib.toggleRecording) {
                 Label("Stop", systemImage: "stop.fill").frame(minWidth: 120)
             }
