@@ -35,8 +35,8 @@
       ],
       "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh",
       "last_run": {
-        "at": "2026-11-05T18:03:30.297664+00:00",
-        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh | tail -3 && grep -c \"EndOfMeeting.swift\" build.sh",
+        "at": "2026-11-05T18:30:34.540533+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh | grep -E \"FAIL|All\"",
         "stage": "build"
       },
       "pid": 53748,
@@ -59,7 +59,7 @@
           "title": "UI: countdown banner, Settings picker, help; build.sh"
         }
       ],
-      "updated": "2026-11-05T18:05:23.724232+00:00"
+      "updated": "2026-11-05T18:30:34.540544+00:00"
     }
   }
 }
