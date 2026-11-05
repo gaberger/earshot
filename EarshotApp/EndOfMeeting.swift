@@ -44,6 +44,23 @@ struct EndOfMeetingDetector {
     private var lastT: TimeInterval = 0
     private var speechSeconds: TimeInterval = 0
     private var ended = false
+    private var currentFloor: Float = 0
+    /// The whole second the loud-sample count below belongs to, and how many loud samples it has had.
+    private var loudSecond = Int.min
+    private var loudCount = 0
+    private var loudFirstDt: TimeInterval = 0
+
+    struct Diagnostics {
+        var floor: Float
+        var threshold: Float
+        var silentFor: TimeInterval
+        var speechSeconds: TimeInterval
+    }
+
+    var diagnostics: Diagnostics {
+        Diagnostics(floor: currentFloor, threshold: currentFloor + config.speechMargin,
+                    silentFor: lastT - silentSince, speechSeconds: speechSeconds)
+    }
 
     /// One entry per second: the quietest level seen in that second.
     private var minima: [(second: Int, level: Float)] = []
@@ -69,20 +86,38 @@ struct EndOfMeetingDetector {
 
         if let level, level > -150 {
             let floor = noiseFloor(adding: level, at: t)
+            currentFloor = floor
             if minima.count - head < Self.minBuckets {
                 // Warm-up: the floor is still falling, so earlier samples are re-judged against it.
                 // Otherwise the first words of a meeting would define the floor and never count.
                 warm.append((t, level, min(dt, config.maxGap)))
+                // A second is speech only from its second loud sample on, so a lone click never counts.
                 speechSeconds = 0
+                var sec = Int.min, count = 0, firstDt: TimeInterval = 0
                 for w in warm where w.level > floor + config.speechMargin {
-                    speechSeconds += w.dt
-                    silentSince = max(silentSince, w.t)
+                    let ws = Int(w.t.rounded(.down))
+                    if ws != sec { sec = ws; count = 0; firstDt = w.dt }
+                    count += 1
+                    if count >= 2 {
+                        speechSeconds += w.dt + (count == 2 ? firstDt : 0)
+                        silentSince = max(silentSince, w.t)
+                    }
                 }
+                loudSecond = sec
+                loudCount = count
+                loudFirstDt = firstDt
             } else {
                 if !warm.isEmpty { warm = [] }
                 if level > floor + config.speechMargin {
-                    silentSince = t
-                    speechSeconds += min(dt, config.maxGap)
+                    let sec = Int(t.rounded(.down))
+                    let step = min(dt, config.maxGap)
+                    if sec != loudSecond { loudSecond = sec; loudCount = 0; loudFirstDt = step }
+                    loudCount += 1
+                    if loudCount >= 2 {
+                        silentSince = t
+                        // The second sample vouches for the first, which is counted with it.
+                        speechSeconds += step + (loudCount == 2 ? loudFirstDt : 0)
+                    }
                 }
             }
         } else {

@@ -174,6 +174,33 @@ func within(_ got: Double?, _ want: Double, _ tol: Double = 1.0) -> Bool {
             checkTrue("but it does not keep it open forever", s.ended(within: 800, of: fanOn), "\(String(describing: s.endedAt))")
         }
 
+        // A lone click or knock is not speech: one loud sample a second must not hold the meeting open.
+        do {
+            var s = Sim()
+            s.speech(60)
+            let quietFrom = s.t
+            s.feed(500) { $0 % 4 == 0 ? -20 : -50 }  // a click every second over a quiet room
+            checkTrue("clicks, one loud sample a second, do not hold the meeting open", within(s.endedAt, quietFrom + 300, 2), "\(String(describing: s.endedAt))")
+        }
+        // But two loud samples in a second are speech-like, so they do hold it open.
+        do {
+            var s = Sim()
+            s.speech(60)
+            s.feed(500) { $0 % 4 < 2 ? -20 : -50 }
+            checkTrue("two loud samples a second still count as speech", s.endedAt == nil && s.firstWarning == nil)
+        }
+        // The diagnostics report what the detector thinks, for the log.
+        do {
+            var s = Sim()
+            s.speech(60)
+            s.ambient(100)
+            let info = s.d.diagnostics
+            checkTrue("diagnostics report the floor", abs(info.floor - -50) < 1, "\(info)")
+            checkTrue("diagnostics report the speech threshold above the floor", abs(info.threshold - info.floor - 12) < 0.01, "\(info)")
+            checkTrue("diagnostics report the silence so far", abs(info.silentFor - 100) < 1.5, "\(info)")
+            checkTrue("diagnostics report the speech heard", info.speechSeconds >= 40, "\(info)")
+        }
+
         // No evidence is not silence.
         do {
             var s = Sim()
