@@ -304,17 +304,17 @@ final class Library: ObservableObject {
     private func stopWatchingForEnd() {
         levelTimer?.invalidate()
         levelTimer = nil
-        endingIn = nil
+        if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
     }
 
     private func tick() {
         let t = ProcessInfo.processInfo.systemUptime - watchStart
         switch detector.ingest(level: micLevel(), at: t) {
         case .listening:
-            endingIn = nil
+            if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
         case .warning(let s):
             if endingIn == nil { NSSound.beep() }
-            endingIn = s
+            if endingIn != s { endingIn = s }
         case .end:
             autoStop()
         }
@@ -330,7 +330,7 @@ final class Library: ObservableObject {
     /// The user chose to keep going: restart the silence clock and dismiss the countdown.
     func keepRecording() {
         detector.keepRecording(at: ProcessInfo.processInfo.systemUptime - watchStart)
-        endingIn = nil
+        if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
     }
 
     private func recordingFinished(_ r: MicRecorder, error: Error?) {
