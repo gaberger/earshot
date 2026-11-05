@@ -10,5 +10,5 @@ swiftc -swift-version 5 -target arm64-apple-macosx26.4 RichText.swift Tests/main
 swiftc -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Chunking.swift Tests/ChunkingTests.swift -o "$out/chunking-tests"
 "$out/chunking-tests"
 # EndOfMeetingTests also uses @main and fails itself if fewer than 12 checks ran.
-swiftc -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library EndOfMeeting.swift Tests/EndOfMeetingTests.swift -o "$out/end-of-meeting-tests"
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library EndOfMeeting.swift Tests/EndOfMeetingTests.swift -o "$out/end-of-meeting-tests"
 "$out/end-of-meeting-tests"

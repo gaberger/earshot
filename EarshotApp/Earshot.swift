@@ -169,6 +169,12 @@ final class Library: ObservableObject {
 
     nonisolated static let editedMarker = "<!-- edited -->"
     @Published var micName: String?
+    /// Seconds until the recording stops itself for lack of speech; nil when not counting down.
+    @Published var endingIn: Int?
+
+    private var detector = EndOfMeetingDetector()
+    private var levelTimer: Timer?
+    private var watchStart: TimeInterval = 0
 
     let dir: URL
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -257,6 +263,7 @@ final class Library: ObservableObject {
             recorder = r
             r.start()
             recording = true
+            startWatchingForEnd()
             startedAt = Date()
             micName = r.deviceName
             notice = r.usedFallback ? "The chosen microphone isn't connected, so this uses \(r.deviceName)." : nil
@@ -275,12 +282,59 @@ final class Library: ObservableObject {
         }
         // The file is finished in recordingFinished, once the capture output has flushed it.
         r.stop()
+        stopWatchingForEnd()
         recording = false
         startedAt = nil
         log("recording stopped")
     }
 
+    // MARK: End-of-meeting detection
+
+    private func startWatchingForEnd() {
+        stopWatchingForEnd()
+        var config = EndOfMeetingDetector.Config()
+        config.silenceLimit = Prefs.autoStopSeconds()
+        detector = EndOfMeetingDetector(config)
+        watchStart = ProcessInfo.processInfo.systemUptime
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+    }
+
+    private func stopWatchingForEnd() {
+        levelTimer?.invalidate()
+        levelTimer = nil
+        endingIn = nil
+    }
+
+    private func tick() {
+        let t = ProcessInfo.processInfo.systemUptime - watchStart
+        switch detector.ingest(level: micLevel(), at: t) {
+        case .listening:
+            endingIn = nil
+        case .warning(let s):
+            if endingIn == nil { NSSound.beep() }
+            endingIn = s
+        case .end:
+            autoStop()
+        }
+    }
+
+    private func autoStop() {
+        let minutes = Int((Prefs.autoStopSeconds() / 60).rounded())
+        log("recording stopped automatically after \(minutes) min of silence")
+        notice = "Stopped automatically: no one spoke for \(minutes) minutes. Start a new recording to carry on."
+        stopRecording()
+    }
+
+    /// The user chose to keep going: restart the silence clock and dismiss the countdown.
+    func keepRecording() {
+        detector.keepRecording(at: ProcessInfo.processInfo.systemUptime - watchStart)
+        endingIn = nil
+    }
+
     private func recordingFinished(_ r: MicRecorder, error: Error?) {
+        stopWatchingForEnd()
         recorder = nil
         micName = nil
         if let error {
@@ -1247,6 +1301,13 @@ enum Prefs {
     static let identifySpeakers = "identifySpeakers"  // Bool, default true
     static let speakerCount = "speakerCount"          // Int, 0 = detect automatically
     static let summaryTemplate = "summaryTemplate"    // SummaryTemplate.id
+    static let autoStopMinutes = "autoStopMinutes"    // Int minutes of silence that stop a recording, 0 = off, default 5 when unset
+
+    /// Seconds of silence that stop a recording: 300 when the setting is unset, 0 when it is off.
+    static func autoStopSeconds(_ defaults: UserDefaults = .standard) -> TimeInterval {
+        guard defaults.object(forKey: autoStopMinutes) != nil else { return 300 }
+        return TimeInterval(defaults.integer(forKey: autoStopMinutes) * 60)
+    }
 
     /// The bundle ID before the app was named Earshot. Its settings are copied over once.
     static let oldBundleID = "local.whisper.transcribe"
