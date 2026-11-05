@@ -175,6 +175,7 @@ final class Library: ObservableObject {
     private var detector = EndOfMeetingDetector()
     private var levelTimer: Timer?
     private var watchStart: TimeInterval = 0
+    private var lastQuietLog: TimeInterval = 0
 
     let dir: URL
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -296,6 +297,7 @@ final class Library: ObservableObject {
         config.silenceLimit = Prefs.autoStopSeconds()
         detector = EndOfMeetingDetector(config)
         watchStart = ProcessInfo.processInfo.systemUptime
+        lastQuietLog = 0
         levelTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -309,11 +311,20 @@ final class Library: ObservableObject {
 
     private func tick() {
         let t = ProcessInfo.processInfo.systemUptime - watchStart
-        switch detector.ingest(level: micLevel(), at: t) {
+        let state = detector.ingest(level: micLevel(), at: t)
+        if t - lastQuietLog >= 15 {
+            lastQuietLog = t
+            let d = detector.diagnostics
+            log("quiet check: level \(Int(micLevel().rounded())) dB, floor \(Int(d.floor.rounded())) dB, speech above \(Int(d.threshold.rounded())) dB, silent for \(Int(d.silentFor.rounded())) s, speech heard \(Int(d.speechSeconds.rounded())) s, limit \(Int(Prefs.autoStopSeconds().rounded())) s")
+        }
+        switch state {
         case .listening:
             if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
         case .warning(let s):
-            if endingIn == nil { NSSound.beep() }
+            if endingIn == nil {
+                NSSound.beep()
+                log("quiet countdown started, \(s) s left")
+            }
             if endingIn != s { endingIn = s }
         case .end:
             autoStop()
