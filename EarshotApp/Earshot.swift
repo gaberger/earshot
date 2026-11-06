@@ -875,8 +875,9 @@ struct SettingsView: View {
                 Text("Earshot records from this microphone. \"System default\" follows the input chosen in "
                      + "System Settings → Sound. The audio stays on this Mac. "
                      + "Earshot stops by itself after this long with no one speaking, and warns you for the last "
-                     + "30 seconds first. It hears the room through this microphone, so a call you listen to on "
-                     + "headphones sounds one-sided: choose a longer time or Never for those.")
+                     + "30 seconds first. During a call in Zoom, Teams, Meet or similar, Earshot sees that the call app "
+                     + "is using the microphone, keeps recording, and stops about a minute after you leave the call. "
+                     + "Without a call it listens to the room, so a quiet meeting may need a longer time or Never.")
                     .foregroundStyle(.secondary)
             }
 
@@ -1334,8 +1335,8 @@ struct HelpView: View {
                     item("Record / Stop", "Starts and stops the microphone. The timer shows how long it has recorded. ⌘R.")
                     item("Automatic stop", "If no one speaks for a while, Earshot stops recording by itself. "
                          + "It counts down for 30 seconds first, and Keep recording carries on. "
-                         + "Change the time, or turn it off, in Settings. A call you hear on headphones sounds quiet "
-                         + "to the microphone, so choose a longer time for those.")
+                         + "Change the time, or turn it off, in Settings. While a call app such as Zoom is using the "
+                         + "microphone Earshot keeps recording, and it stops about a minute after the call ends.")
                     item("Import", "Transcribe an audio or video file you already have. You can also drag files into the window. ⌘O.")
                     item("Translate", "When on, speech in another language is written in English.")
                     item("Summarize", "Writes a new summary of the selected recording.")

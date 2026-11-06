@@ -100,7 +100,10 @@ struct EndOfMeetingDetector {
         let dt = t - lastT
         lastT = t
         if ended { return .end }
-        if dt > config.maxGap { silentSince = t }
+        if dt > config.maxGap {
+            silentSince = t
+            callAnchor = max(callAnchor, t)  // no evidence is not silence, for the call-ended clock too
+        }
         if otherAppCapturing == true {
             silentSince = t
             callSeconds += min(dt, config.maxGap)
