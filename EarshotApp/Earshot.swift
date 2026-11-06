@@ -957,8 +957,23 @@ struct SettingsView: View {
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
     @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
     @State private var inputs: [AVCaptureDevice] = []
-    @State private var openAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginStatus = SMAppService.mainApp.status
     @State private var loginNotice: String?
+
+    /// On means registered, whether or not macOS still wants the user to approve it in Login Items.
+    private var openAtLogin: Bool { loginStatus == .enabled || loginStatus == .requiresApproval }
+
+    private func refreshLogin() {
+        loginStatus = SMAppService.mainApp.status
+        switch loginStatus {
+        case .requiresApproval:
+            loginNotice = "macOS needs you to allow Earshot in System Settings → General → Login Items."
+        case .notFound:
+            loginNotice = "macOS can't find Earshot as a login item. Move Earshot to your Applications folder and try again."
+        default:
+            if loginNotice?.hasPrefix("Couldn't") != true { loginNotice = nil }
+        }
+    }
 
     private func setOpenAtLogin(_ on: Bool) {
         do {
@@ -967,7 +982,7 @@ struct SettingsView: View {
         } catch {
             loginNotice = "Couldn't change Open at login: \(error.localizedDescription)"
         }
-        openAtLogin = SMAppService.mainApp.status == .enabled
+        refreshLogin()
     }
 
     private var defaultName: String { AVCaptureDevice.default(for: .audio)?.localizedName ?? "none" }
@@ -1000,8 +1015,13 @@ struct SettingsView: View {
                     get: { openAtLogin },
                     set: { setOpenAtLogin($0) }))
                 if let loginNotice {
-                    Label(loginNotice, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    HStack {
+                        Label(loginNotice, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                        if loginStatus == .requiresApproval {
+                            Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                        }
+                    }
                 }
             } header: {
                 Text("Recording")
@@ -1049,7 +1069,8 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
-        .onAppear { inputs = MicRecorder.inputs() }
+        .onAppear { inputs = MicRecorder.inputs(); refreshLogin() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refreshLogin() }
         .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
             inputs = MicRecorder.inputs()
         }
