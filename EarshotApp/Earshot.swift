@@ -5,6 +5,7 @@
 import AVFoundation
 import AppKit
 import Combine
+import CoreAudio
 import Darwin
 import FoundationModels
 import IOKit
@@ -176,6 +177,10 @@ final class Library: ObservableObject {
     private var levelTimer: Timer?
     private var watchStart: TimeInterval = 0
     private var lastQuietLog: TimeInterval = 0
+    // The other-app microphone probe runs once a second; nil means unknown.
+    private var otherAppCapturing: Bool?
+    private var lastProbe: TimeInterval = -1
+    private var sawOtherApp = false
 
     let dir: URL
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -298,6 +303,9 @@ final class Library: ObservableObject {
         detector = EndOfMeetingDetector(config)
         watchStart = ProcessInfo.processInfo.systemUptime
         lastQuietLog = 0
+        otherAppCapturing = nil
+        lastProbe = -1
+        sawOtherApp = false
         levelTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -311,11 +319,29 @@ final class Library: ObservableObject {
 
     private func tick() {
         let t = ProcessInfo.processInfo.systemUptime - watchStart
-        let state = detector.ingest(level: micLevel(), at: t)
+        if lastProbe < 0 || t - lastProbe >= 1 {
+            lastProbe = t
+            let probe = OtherAppMicProbe.otherAppCapturing()
+            let answer = probe?.0
+            if answer != otherAppCapturing {
+                otherAppCapturing = answer
+                switch answer {
+                case true?:
+                    sawOtherApp = true
+                    log("other app capturing the microphone: \(probe?.1.joined(separator: ", ") ?? "")")
+                case false?:
+                    log("no other app is capturing the microphone")
+                case nil:
+                    log("could not tell whether another app is capturing the microphone")
+                }
+            }
+        }
+        let state = detector.ingest(level: micLevel(), at: t, otherAppCapturing: otherAppCapturing)
         if t - lastQuietLog >= 15 {
             lastQuietLog = t
             let d = detector.diagnostics
-            log("quiet check: level \(Int(micLevel().rounded())) dB, floor \(Int(d.floor.rounded())) dB, speech above \(Int(d.threshold.rounded())) dB, silent for \(Int(d.silentFor.rounded())) s, speech heard \(Int(d.speechSeconds.rounded())) s, limit \(Int(Prefs.autoStopSeconds().rounded())) s")
+            let callState = otherAppCapturing.map { $0 ? "other app capturing" : "no other app capturing" } ?? "unknown"
+            log("quiet check: call \(callState), level \(Int(micLevel().rounded())) dB, floor \(Int(d.floor.rounded())) dB, speech above \(Int(d.threshold.rounded())) dB, silent for \(Int(d.silentFor.rounded())) s, speech heard \(Int(d.speechSeconds.rounded())) s, limit \(Int(Prefs.autoStopSeconds().rounded())) s")
         }
         switch state {
         case .listening:
@@ -332,9 +358,14 @@ final class Library: ObservableObject {
     }
 
     private func autoStop() {
-        let minutes = Int((Prefs.autoStopSeconds() / 60).rounded())
-        log("recording stopped automatically after \(minutes) min of silence")
-        notice = "Stopped automatically after a long quiet spell. You can change this in Settings (⌘,)."
+        if sawOtherApp && otherAppCapturing == false {
+            log("recording stopped automatically: the call ended")
+            notice = "Stopped automatically: the call ended. You can change this in Settings (⌘,)."
+        } else {
+            let minutes = Int((Prefs.autoStopSeconds() / 60).rounded())
+            log("recording stopped automatically after \(minutes) min of silence")
+            notice = "Stopped automatically after a long quiet spell. You can change this in Settings (⌘,)."
+        }
         stopRecording()
     }
 
@@ -689,6 +720,48 @@ final class Library: ObservableObject {
 }
 
 // MARK: - Microphone
+
+/// Asks CoreAudio whether any other process is capturing from a microphone right now.
+/// Returns nil when the process list can't be read; otherwise whether another process
+/// is capturing, plus the bundle ids (or pids, when there is no bundle id) for logging.
+enum OtherAppMicProbe {
+    nonisolated static func otherAppCapturing() -> (Bool, [String])? {
+        func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+            AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
+                                       mElement: kAudioObjectPropertyElementMain)
+        }
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        var listAddress = address(kAudioHardwarePropertyProcessObjectList)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(system, &listAddress, 0, nil, &size) == noErr else { return nil }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(system, &listAddress, 0, nil, &size, &ids) == noErr else { return nil }
+
+        var capturing: [String] = []
+        for id in ids {
+            var pid: pid_t = 0
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            var pidAddress = address(kAudioProcessPropertyPID)
+            guard AudioObjectGetPropertyData(id, &pidAddress, 0, nil, &pidSize, &pid) == noErr,
+                  pid != getpid() else { continue }
+            var input: UInt32 = 0
+            var inputSize = UInt32(MemoryLayout<UInt32>.size)
+            var inputAddress = address(kAudioProcessPropertyIsRunningInput)
+            guard AudioObjectGetPropertyData(id, &inputAddress, 0, nil, &inputSize, &input) == noErr,
+                  input != 0 else { continue }
+            var bundle: Unmanaged<CFString>?
+            var bundleSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            var bundleAddress = address(kAudioProcessPropertyBundleID)
+            if AudioObjectGetPropertyData(id, &bundleAddress, 0, nil, &bundleSize, &bundle) == noErr,
+               let name = bundle?.takeRetainedValue() as String?, !name.isEmpty {
+                capturing.append(name)
+            } else {
+                capturing.append("pid \(pid)")
+            }
+        }
+        return (!capturing.isEmpty, capturing)
+    }
+}
 
 /// Records one chosen microphone to a 16 kHz mono WAV, the format whisper.cpp wants.
 /// AVAudioRecorder can only use the system default input, so this uses a capture session.
