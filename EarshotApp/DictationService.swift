@@ -39,6 +39,8 @@ final class DictationService: ObservableObject {
     private var handler: EventHandlerRef?
     /// The shortcut currently registered, so a change in Settings can be noticed.
     private var registered: HotKey?
+    /// A shortcut another app refused to give up; not retried until the saved shortcut changes.
+    private var rejectedKey: HotKey?
     private let hud = DictationHUD()
 
     /// Asks for the two permissions dictation needs: the microphone, and Accessibility (to type).
@@ -53,6 +55,11 @@ final class DictationService: ObservableObject {
     /// Registers or unregisters the hotkey to match the preference. Safe to call any number of times.
     func refresh() {
         guard DictationPrefs.isEnabled() else { return unregister() }
+        // The saved shortcut was refused and has not changed: no retry, no second notice.
+        if let rejectedKey {
+            if rejectedKey == HotKey.load() { return }
+            self.rejectedKey = nil
+        }
         if hotKey != nil, registered != HotKey.load() {
             // Keep the handler; only the key changes.
             if let hotKey { UnregisterEventHotKey(hotKey) }
@@ -63,7 +70,7 @@ final class DictationService: ObservableObject {
     }
 
     private func register() {
-        guard hotKey == nil else { return }
+        guard hotKey == nil, rejectedKey != HotKey.load() else { return }
         if handler == nil {
             var kinds = [
                 EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
@@ -92,6 +99,7 @@ final class DictationService: ObservableObject {
         } else {
             hotKey = nil
             registered = nil
+            rejectedKey = key
             log("Dictation: could not register \(key.display) (\(status)).")
             notify("Another app already uses \(key.display). Choose a different shortcut in Settings → Dictation.")
         }
@@ -103,6 +111,7 @@ final class DictationService: ObservableObject {
         hotKey = nil
         handler = nil
         registered = nil
+        rejectedKey = nil
         hud.hide()
         // Turning it off mid-hold must not leave the microphone open.
         send(.keyUp(at: ProcessInfo.processInfo.systemUptime))

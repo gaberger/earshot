@@ -86,6 +86,8 @@ final class DictationHUD {
 
     func hide() {
         panel?.orderOut(nil)
+        panel?.contentView = nil
+        host = nil
         lastText = nil
     }
 
