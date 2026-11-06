@@ -38,6 +38,13 @@ final class DictationService: ObservableObject {
     private var hotKey: EventHotKeyRef?
     private var handler: EventHandlerRef?
 
+    /// Asks for the two permissions dictation needs: the microphone, and Accessibility (to type).
+    static func requestPermissions() {
+        AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    }
+
     // MARK: Hotkey
 
     /// Registers or unregisters the hotkey to match the preference. Safe to call any number of times.

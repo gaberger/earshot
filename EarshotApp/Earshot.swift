@@ -194,6 +194,7 @@ final class Library: ObservableObject {
     // True while waiting for the microphone permission answer, so a second click can't start a second recorder.
     private var starting = false
     private var savedTranscript = ""
+    let dictation = DictationService()
 
     init() {
         dir = home.appendingPathComponent("Recordings/whisper")
@@ -206,6 +207,16 @@ final class Library: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recorder?.stop() }
+        }
+        dictation.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
+        dictation.runHelper = { await Library.run($0) }
+        dictation.log = { [weak self] in self?.log($0) }
+        dictation.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
+        dictation.refresh()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.dictation.refresh() }
         }
         callNotifier.onRecord = { [weak self] in
             guard let self, !self.recording else { return }
@@ -498,7 +509,7 @@ final class Library: ObservableObject {
     }
 
     /// A helper script: the copy inside the app (so a DMG install works on its own), else ~/.local/bin.
-    private func bin(_ name: String) -> String {
+    func bin(_ name: String) -> String {
         if let bundled = Bundle.main.url(forResource: name, withExtension: nil),
            FileManager.default.isExecutableFile(atPath: bundled.path) {
             return bundled.path
@@ -507,7 +518,7 @@ final class Library: ObservableObject {
     }
 
     /// Runs a helper script off the main thread. Returns nil on success, or the last lines of its error output.
-    nonisolated private static func run(_ args: [String]) async -> String? {
+    nonisolated static func run(_ args: [String]) async -> String? {
         await Task.detached {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -956,6 +967,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.speakerCount) private var speakerCount = 0
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
     @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
+    @AppStorage(DictationPrefs.enabled) private var dictationEnabled = false
     @State private var inputs: [AVCaptureDevice] = []
     @State private var loginStatus = SMAppService.mainApp.status
     @State private var loginNotice: String?
@@ -1035,6 +1047,24 @@ struct SettingsView: View {
                      + "Earshot has to be running to notice a call, so open it at login and it waits in the menu bar. "
                      + "It only asks; it never records without your click.")
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Dictate into any app", isOn: $dictationEnabled)
+                    .onChange(of: dictationEnabled) { _, on in
+                        if on { DictationService.requestPermissions() }
+                    }
+                Text("Hold Control+Option+Space, speak, and let go. Earshot types what you said into the app you are in. "
+                     + "Needs Microphone and Accessibility access. Nothing is typed into password fields, and the audio is not kept.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if dictationEnabled && !AXIsProcessTrusted() {
+                    Label("Earshot is not allowed to type for you yet. Turn it on in System Settings → Privacy & Security → Accessibility.",
+                          systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Dictation")
             }
 
             Section {
