@@ -9,7 +9,9 @@ import CoreAudio
 import Darwin
 import FoundationModels
 import IOKit
+import ServiceManagement
 import SwiftUI
+import UserNotifications
 
 @main
 struct EarshotApp: App {
@@ -181,6 +183,10 @@ final class Library: ObservableObject {
     private var otherAppCapturing: Bool?
     private var lastProbe: TimeInterval = -1
     private var sawOtherApp = false
+    // Call-start offers: a second 1 s timer that runs whenever Earshot is open and not recording.
+    private var callDetector = CallStartDetector()
+    private var offerTimer: Timer?
+    private let callNotifier = CallOfferNotifier()
 
     let dir: URL
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -200,6 +206,42 @@ final class Library: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recorder?.stop() }
+        }
+        callNotifier.onRecord = { [weak self] in
+            guard let self, !self.recording else { return }
+            self.log("call offer: user chose Record")
+            self.toggleRecording()
+        }
+        callNotifier.onIgnore = { [weak self] bundleID in
+            guard let self else { return }
+            var ignored = UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? []
+            if !ignored.contains(bundleID) { ignored.append(bundleID) }
+            UserDefaults.standard.set(ignored, forKey: Prefs.callOfferIgnoredApps)
+            self.log("call offer: user chose Not for \(bundleID)")
+        }
+        offerTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.offerTick() }
+        }
+    }
+
+    private func offerTick() {
+        guard !recording, Prefs.offerOnCallEnabled() else { return }
+        let ignored = Set(UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? [])
+        let procs = OtherAppMicProbe.capturingProcesses()?.filter { !($0.bundleID.map(ignored.contains) ?? false) }
+        let verdict = callDetector.ingest(capturing: procs.map { !$0.isEmpty }, recording: recording,
+                                          at: ProcessInfo.processInfo.systemUptime)
+        guard verdict == .offer, let first = procs?.first else { return }
+        let name = NSRunningApplication(processIdentifier: first.pid)?.localizedName
+            ?? first.bundleID ?? "Another app"
+        log("call offer: \(name) (\(first.bundleID ?? "pid \(first.pid)")) has held the microphone, offering to record")
+        Task { @MainActor in
+            let posted = await callNotifier.offer(appName: name, bundleID: first.bundleID)
+            if posted {
+                log("call offer: notification posted for \(name)")
+            } else {
+                log("call offer: notification not allowed, showing a notice instead")
+                notice = "\(name) is using the microphone. Press Record to capture this meeting."
+            }
         }
     }
 
@@ -726,6 +768,13 @@ final class Library: ObservableObject {
 /// is capturing, plus the bundle ids (or pids, when there is no bundle id) for logging.
 enum OtherAppMicProbe {
     nonisolated static func otherAppCapturing() -> (Bool, [String])? {
+        guard let procs = capturingProcesses() else { return nil }
+        let names = procs.map { $0.bundleID ?? "pid \($0.pid)" }
+        return (!names.isEmpty, names)
+    }
+
+    /// The other processes (not this one) that are capturing input right now; nil when the process list can't be read.
+    nonisolated static func capturingProcesses() -> [(pid: pid_t, bundleID: String?)]? {
         func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
             AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
                                        mElement: kAudioObjectPropertyElementMain)
@@ -737,7 +786,7 @@ enum OtherAppMicProbe {
         var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(system, &listAddress, 0, nil, &size, &ids) == noErr else { return nil }
 
-        var capturing: [String] = []
+        var capturing: [(pid: pid_t, bundleID: String?)] = []
         for id in ids {
             var pid: pid_t = 0
             var pidSize = UInt32(MemoryLayout<pid_t>.size)
@@ -754,12 +803,75 @@ enum OtherAppMicProbe {
             var bundleAddress = address(kAudioProcessPropertyBundleID)
             if AudioObjectGetPropertyData(id, &bundleAddress, 0, nil, &bundleSize, &bundle) == noErr,
                let name = bundle?.takeRetainedValue() as String?, !name.isEmpty {
-                capturing.append(name)
+                capturing.append((pid: pid, bundleID: name))
             } else {
-                capturing.append("pid \(pid)")
+                capturing.append((pid: pid, bundleID: nil))
             }
         }
-        return (!capturing.isEmpty, capturing)
+        return capturing
+    }
+}
+
+/// Posts the "Record this meeting?" notification and reports the user's choice through closures.
+final class CallOfferNotifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    static let categoryID = "callOffer"
+    static let recordAction = "callOffer.record"
+    static let ignoreAction = "callOffer.ignore"
+
+    var onRecord: @MainActor () -> Void = {}
+    var onIgnore: @MainActor (String) -> Void = { _ in }
+    private var registered = false
+
+    private func register() {
+        guard !registered else { return }
+        registered = true
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        let record = UNNotificationAction(identifier: Self.recordAction, title: "Record", options: [.foreground])
+        let ignore = UNNotificationAction(identifier: Self.ignoreAction, title: "Not for this app", options: [])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.categoryID, actions: [record, ignore],
+                                   intentIdentifiers: [], options: [])
+        ])
+    }
+
+    /// Asks for permission if needed, posts the offer, and returns whether it was allowed.
+    func offer(appName: String, bundleID: String?) async -> Bool {
+        register()
+        let center = UNUserNotificationCenter.current()
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+        guard granted else { return false }
+        let content = UNMutableNotificationContent()
+        content.title = "\(appName) is using the microphone"
+        content.body = "Record this meeting?"
+        content.categoryIdentifier = Self.categoryID
+        content.userInfo = ["bundleID": bundleID ?? "", "appName": appName]
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        do {
+            try await center.add(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let bundleID = response.notification.request.content.userInfo["bundleID"] as? String ?? ""
+        let action = response.actionIdentifier
+        Task { @MainActor in
+            if action == Self.ignoreAction {
+                if !bundleID.isEmpty { self.onIgnore(bundleID) }
+            } else if action == Self.recordAction || action == UNNotificationDefaultActionIdentifier {
+                self.onRecord()
+            }
+            completionHandler()
+        }
     }
 }
 
@@ -842,7 +954,20 @@ struct SettingsView: View {
     @AppStorage(Prefs.identifySpeakers) private var identifySpeakers = true
     @AppStorage(Prefs.speakerCount) private var speakerCount = 0
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
+    @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
     @State private var inputs: [AVCaptureDevice] = []
+    @State private var openAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginNotice: String?
+
+    private func setOpenAtLogin(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            loginNotice = nil
+        } catch {
+            loginNotice = "Couldn't change Open at login: \(error.localizedDescription)"
+        }
+        openAtLogin = SMAppService.mainApp.status == .enabled
+    }
 
     private var defaultName: String { AVCaptureDevice.default(for: .audio)?.localizedName ?? "none" }
     private var chosenMissing: Bool { !microphoneID.isEmpty && !inputs.contains { $0.uniqueID == microphoneID } }
@@ -869,6 +994,14 @@ struct SettingsView: View {
                     Text("15 minutes").tag(15)
                     Text("30 minutes").tag(30)
                 }
+                Toggle("Offer to record when a call starts", isOn: $offerOnCall)
+                Toggle("Open Earshot at login", isOn: Binding(
+                    get: { openAtLogin },
+                    set: { setOpenAtLogin($0) }))
+                if let loginNotice {
+                    Label(loginNotice, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             } header: {
                 Text("Recording")
             } footer: {
@@ -877,7 +1010,9 @@ struct SettingsView: View {
                      + "Earshot stops by itself after this long with no one speaking, and warns you for the last "
                      + "30 seconds first. During a call in Zoom, Teams, Meet or similar, Earshot sees that the call app "
                      + "is using the microphone, keeps recording, and stops about a minute after you leave the call. "
-                     + "Without a call it listens to the room, so a quiet meeting may need a longer time or Never.")
+                     + "Without a call it listens to the room, so a quiet meeting may need a longer time or Never. "
+                     + "Earshot has to be running to notice a call, so open it at login and it waits in the menu bar. "
+                     + "It only asks; it never records without your click.")
                     .foregroundStyle(.secondary)
             }
 
@@ -1349,6 +1484,14 @@ struct HelpView: View {
                          + "shows the microphone's name and a level bar, so you can see it hears you. ⌘,.")
                 }
 
+                section("Calls", "phone.badge.waveform") {
+                    item("Offer to record", "When another app, such as Zoom, Teams or Meet, has been using the "
+                         + "microphone for about 10 seconds, Earshot shows a notification: Record this meeting? "
+                         + "It only asks; it never records without your click. Choose Not for that app to stop "
+                         + "asking about it. Earshot has to be running to notice a call, so turn on Open Earshot at "
+                         + "login in Settings and it waits in the menu bar.")
+                }
+
                 section("The status bar", "rectangle.bottomthird.inset.filled") {
                     item("Left side", "What Earshot is doing now: recording, transcribing, finding speakers or "
                          + "summarizing. When it is idle, how many recordings you have.")
@@ -1410,6 +1553,15 @@ enum Prefs {
     static let speakerCount = "speakerCount"          // Int, 0 = detect automatically
     static let summaryTemplate = "summaryTemplate"    // SummaryTemplate.id
     static let autoStopMinutes = "autoStopMinutes"    // Int minutes of silence that stop a recording, 0 = off, default 5 when unset
+
+    static let offerOnCall = "offerOnCall"                    // Bool, default true when unset
+    static let callOfferIgnoredApps = "callOfferIgnoredApps"  // [String] bundle ids never offered for
+
+    /// Whether to offer to record when a call starts: true when the setting is unset.
+    static func offerOnCallEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: offerOnCall) != nil else { return true }
+        return defaults.bool(forKey: offerOnCall)
+    }
 
     /// Seconds of silence that stop a recording: 300 when the setting is unset, 0 when it is off.
     static func autoStopSeconds(_ defaults: UserDefaults = .standard) -> TimeInterval {
