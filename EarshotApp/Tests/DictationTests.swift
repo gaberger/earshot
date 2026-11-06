@@ -100,8 +100,16 @@ func isNotice(_ a: [DictationSession.Action]) -> Bool {
         checkTrue("empty stays empty", c("") == "" && c("   \n ") == "")
         checkTrue("keeps non-English text intact", c("¿Dónde está la biblioteca?") == "¿Dónde está la biblioteca?")
 
+        // MARK: what the on-screen indicator says (nothing when there is nothing to say)
+        let states: [DictationSession.State] = [.idle, .listening, .transcribing, .inserting]
+        checkTrue("idle shows no indicator", DictationSession.State.idle.indicatorText == nil)
+        checkTrue("listening says Listening…", DictationSession.State.listening.indicatorText == "Listening…")
+        checkTrue("transcribing says Transcribing…", DictationSession.State.transcribing.indicatorText == "Transcribing…")
+        checkTrue("inserting shows none (the text is about to appear)", DictationSession.State.inserting.indicatorText == nil)
+        checkTrue("only listening asks for the level meter", states.filter(\.showsLevel) == [.listening])
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 24 { print("VACUOUS: only \(checks) checks ran, need 24"); exit(1) }
+        if checks < 29 { print("VACUOUS: only \(checks) checks ran, need 29"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }
