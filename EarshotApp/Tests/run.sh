@@ -12,3 +12,6 @@ swiftc -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Chunkin
 # EndOfMeetingTests also uses @main and fails itself if fewer than 12 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library EndOfMeeting.swift Tests/EndOfMeetingTests.swift -o "$out/end-of-meeting-tests"
 "$out/end-of-meeting-tests"
+# CallStartTests also uses @main and fails itself if fewer than 10 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library CallStart.swift Tests/CallStartTests.swift -o "$out/call-start-tests"
+"$out/call-start-tests"
