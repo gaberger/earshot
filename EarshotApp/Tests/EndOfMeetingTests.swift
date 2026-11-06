@@ -32,6 +32,8 @@ struct Sim {
     var firstWarningSeconds: Int?
     var endedAt: Double?
     var samples = 0
+    /// Whether another app is capturing the microphone; nil = unknown. Passed with every sample.
+    var other: Bool?
 
     init(_ config: EndOfMeetingDetector.Config = .init()) { d = EndOfMeetingDetector(config) }
 
@@ -41,7 +43,7 @@ struct Sim {
         for i in 0..<n {
             t += step
             samples += 1
-            switch d.ingest(level: level(i), at: t) {
+            switch d.ingest(level: level(i), at: t, otherAppCapturing: other) {
             case .listening: break
             case .warning(let left):
                 if firstWarning == nil { firstWarning = t; firstWarningSeconds = left }
@@ -54,6 +56,11 @@ struct Sim {
     /// Speech with a word gap every fourth sample, 25 dB over the floor.
     mutating func speech(_ seconds: Double, _ floor: Float = -50) {
         feed(seconds) { $0 % 4 == 3 ? floor : floor + 25 }
+    }
+    /// Room noise like the real log: -54 dB with a bump 14 dB up (over the speech margin) every 25 s.
+    mutating func noisyRoom(_ seconds: Double) {
+        let every = Int(25 / step)
+        feed(seconds) { $0 % every < 2 ? -40 : -54 }
     }
     mutating func gap(_ seconds: Double) { t += seconds }  // the Mac slept, or the app stalled
     func ended(within s: Double, of start: Double) -> Bool { endedAt.map { $0 <= start + s } ?? false }
@@ -270,8 +277,75 @@ func within(_ got: Double?, _ want: Double, _ tol: Double = 1.0) -> Bool {
             checkTrue("the property test ended some meetings and kept others", ended >= 20 && kept >= 20, "ended \(ended), kept \(kept)")
         }
 
+        // Another app (a call) capturing the mic holds a quiet recording open, however long.
+        do {
+            var s = Sim()
+            s.other = true
+            s.noisyRoom(1800)
+            checkTrue("a call in progress is never ended, nor warned", s.firstWarning == nil && s.endedAt == nil)
+            checkTrue("the call test really ran", s.samples > 7_000)
+        }
+
+        // The call ending ends the recording in ~60 s, even though room noise keeps poking over the margin.
+        do {
+            var s = Sim()
+            s.other = true
+            s.noisyRoom(600)
+            s.other = false
+            let left = s.t
+            s.noisyRoom(300)
+            checkTrue("it warns 30 s before the call-ended limit", within(s.firstWarning, left + 30), "\(String(describing: s.firstWarning))")
+            checkTrue("the countdown starts at 30", s.firstWarningSeconds == 30, "\(String(describing: s.firstWarningSeconds))")
+            checkTrue("it ends 60 s after the call ended", within(s.endedAt, left + 60), "\(String(describing: s.endedAt))")
+        }
+
+        // Joining another call during the countdown cancels it.
+        do {
+            var s = Sim()
+            s.other = true; s.noisyRoom(300); s.other = false
+            s.noisyRoom(40)
+            checkTrue("in the call-ended countdown", s.firstWarning != nil && s.endedAt == nil)
+            s.other = true; s.firstWarning = nil
+            s.noisyRoom(300)
+            checkTrue("the other app capturing again cancels it", s.firstWarning == nil && s.endedAt == nil)
+        }
+
+        // Keep recording restarts the call-ended clock too.
+        do {
+            var s = Sim()
+            s.other = true; s.noisyRoom(300); s.other = false
+            s.noisyRoom(45)
+            s.d.keepRecording(at: s.t)
+            let kept = s.t
+            s.noisyRoom(120)
+            checkTrue("keepRecording restarts the call-ended limit", within(s.endedAt, kept + 60), "\(String(describing: s.endedAt))")
+        }
+
+        // A brief mic user (Siri, dictation) does not shorten the limit.
+        do {
+            var s = Sim()
+            s.speech(60)
+            s.other = true; s.ambient(10); s.other = false
+            let left = s.t
+            s.ambient(600)
+            checkTrue("a 10 s capture by another app leaves the normal 300 s limit", within(s.endedAt, left + 300, 2), "\(String(describing: s.endedAt))")
+        }
+
+        // An unknown probe (nil) changes nothing, and Off never ends.
+        do {
+            var s = Sim()
+            s.other = nil
+            s.speech(60); s.ambient(600)
+            checkTrue("nil probe: the level detector ends as before", s.endedAt != nil)
+            var config = EndOfMeetingDetector.Config()
+            config.silenceLimit = 0
+            var off = Sim(config)
+            off.other = true; off.noisyRoom(300); off.other = false; off.noisyRoom(600)
+            checkTrue("Off never ends, even after a call", off.endedAt == nil && off.firstWarning == nil)
+        }
+
         // An empty run is not a pass.
-        checkTrue("at least 12 checks ran", checks >= 12, "\(checks)")
+        checkTrue("at least 24 checks ran", checks >= 24, "\(checks)")
         print(failures == 0 ? "All end-of-meeting tests passed (\(checks) checks)" : "\(failures) end-of-meeting test(s) failed")
         exit(failures == 0 ? 0 : 1)
     }

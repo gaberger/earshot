@@ -12,6 +12,12 @@ import Foundation
 /// - It cannot end before it has heard real speech (or the long no-speech limit), nor before the
 ///   minimum recording length.
 ///
+/// A second signal, whether another app is capturing the microphone, tells a call from a quiet room:
+/// - While another app captures input, the call is in progress, so the silence clock restarts.
+/// - Once such a call has lasted `minimumCall`, the other app letting go ends the recording within
+///   `callEndedLimit`, even if little speech was heard. Room noise cannot postpone that bound; only
+///   the other app capturing again, or `keepRecording(at:)`, can. A missing signal changes nothing.
+///
 /// It is a pure value type: time is passed in with each sample, so it is deterministic.
 struct EndOfMeetingDetector {
     struct Config {
@@ -31,6 +37,11 @@ struct EndOfMeetingDetector {
         var maxGap: TimeInterval = 5
         /// Seconds of history the noise floor is estimated from.
         var floorWindow: TimeInterval = 300
+        /// Seconds another app must have captured input for its stopping to count as a call ending.
+        var minimumCall: TimeInterval = 30
+        /// Seconds after a call ends (or after "Keep recording") that end the recording. Never more
+        /// than `silenceLimit`.
+        var callEndedLimit: TimeInterval = 60
     }
 
     enum Verdict: Equatable {
@@ -43,6 +54,12 @@ struct EndOfMeetingDetector {
     private var silentSince: TimeInterval = 0
     private var lastT: TimeInterval = 0
     private var speechSeconds: TimeInterval = 0
+    /// Seconds another app has been capturing input.
+    private var callSeconds: TimeInterval = 0
+    /// The last time another app was seen capturing input.
+    private var lastCallT: TimeInterval = 0
+    /// The later of `lastCallT` and the last "Keep recording": the call-ended bound counts from here.
+    private var callAnchor: TimeInterval = 0
     private var ended = false
     private var currentFloor: Float = 0
     /// The whole second the loud-sample count below belongs to, and how many loud samples it has had.
@@ -76,13 +93,20 @@ struct EndOfMeetingDetector {
 
     mutating func keepRecording(at t: TimeInterval) {
         silentSince = t
+        callAnchor = max(callAnchor, t)
     }
 
-    mutating func ingest(level: Float?, at t: TimeInterval) -> Verdict {
+    mutating func ingest(level: Float?, at t: TimeInterval, otherAppCapturing: Bool? = nil) -> Verdict {
         let dt = t - lastT
         lastT = t
         if ended { return .end }
         if dt > config.maxGap { silentSince = t }
+        if otherAppCapturing == true {
+            silentSince = t
+            callSeconds += min(dt, config.maxGap)
+            lastCallT = t
+            callAnchor = max(callAnchor, t)
+        }
 
         if let level, level > -150 {
             let floor = noiseFloor(adding: level, at: t)
@@ -125,9 +149,15 @@ struct EndOfMeetingDetector {
         }
 
         if config.silenceLimit == 0 { return .listening }
-        let armed = speechSeconds >= config.minimumSpeech
+        let callEnded = otherAppCapturing == false && callSeconds >= config.minimumCall
+        let armed = callEnded || speechSeconds >= config.minimumSpeech
         let limit = armed ? config.silenceLimit : config.noSpeechLimit
-        let remaining = max(limit - (t - silentSince), config.minimumDuration - t)
+        var untilEnd = limit - (t - silentSince)
+        if callEnded {
+            let callLimit = min(config.callEndedLimit, config.silenceLimit)
+            untilEnd = min(untilEnd, callLimit - (t - callAnchor))
+        }
+        let remaining = max(untilEnd, config.minimumDuration - t)
         if remaining <= 0 {
             ended = true
             return .end
