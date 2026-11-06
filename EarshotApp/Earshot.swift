@@ -225,12 +225,13 @@ final class Library: ObservableObject {
     }
 
     private func offerTick() {
-        guard !recording, Prefs.offerOnCallEnabled() else { return }
+        // Keep feeding the detector while recording: it must know the call was already handled.
+        guard Prefs.offerOnCallEnabled() else { return }
         let ignored = Set(UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? [])
         let procs = OtherAppMicProbe.capturingProcesses()?.filter { !($0.bundleID.map(ignored.contains) ?? false) }
         let verdict = callDetector.ingest(capturing: procs.map { !$0.isEmpty }, recording: recording,
                                           at: ProcessInfo.processInfo.systemUptime)
-        guard verdict == .offer, let first = procs?.first else { return }
+        guard verdict == .offer, !recording, let first = procs?.first else { return }
         let name = NSRunningApplication(processIdentifier: first.pid)?.localizedName
             ?? first.bundleID ?? "Another app"
         log("call offer: \(name) (\(first.bundleID ?? "pid \(first.pid)")) has held the microphone, offering to record")
