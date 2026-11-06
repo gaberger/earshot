@@ -1,5 +1,21 @@
 {
   "sessions": {
+    "45399de1-9c80-4f19-80d1-23e9d7adbd1c": {
+      "adr": "ADR-2611061700",
+      "files": [
+        "docs/adrs/ADR-2611061700-call-aware-end-detection.md"
+      ],
+      "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-06T16:12:36.717936+00:00",
+        "gate": "cd EarshotApp && bash Tests/run.sh",
+        "stage": "build"
+      },
+      "pid": 29691,
+      "pid_start": null,
+      "stage": "build",
+      "updated": "2026-11-06T16:13:28.346797+00:00"
+    },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
       "evidence": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2",
