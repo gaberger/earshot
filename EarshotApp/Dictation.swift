@@ -26,6 +26,19 @@ struct DictationSession {
         case listening
         case transcribing
         case inserting
+
+        /// What the on-screen indicator says, or `nil` when it should be hidden. Inserting shows
+        /// nothing: the text is about to appear, and the indicator would only flash.
+        var indicatorText: String? {
+            switch self {
+            case .listening: return "Listening…"
+            case .transcribing: return "Transcribing…"
+            case .idle, .inserting: return nil
+            }
+        }
+
+        /// Whether the indicator carries a live level meter. Only while the microphone is open.
+        var showsLevel: Bool { self == .listening }
     }
 
     enum Event: Equatable {

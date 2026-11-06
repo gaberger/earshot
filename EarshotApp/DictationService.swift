@@ -14,8 +14,8 @@ enum DictationPrefs {
     }
 }
 
-/// The AppKit side of push-to-talk dictation: a global hold-to-talk hotkey (Control+Option+Space),
-/// a short microphone capture while it is held, whisper through the owner's helper, and a paste
+/// The AppKit side of push-to-talk dictation: a global hold-to-talk hotkey (the saved
+/// `HotKey`, Control+Option+Space by default), a short microphone capture while it is held, whisper through the owner's helper, and a paste
 /// into whatever app has focus. `DictationSession` decides; this class only does what it says.
 ///
 /// It fails toward "type nothing", like the core. Every path out of a capture ends in a
@@ -37,6 +37,9 @@ final class DictationService: ObservableObject {
     private var ticker: Timer?
     private var hotKey: EventHotKeyRef?
     private var handler: EventHandlerRef?
+    /// The shortcut currently registered, so a change in Settings can be noticed.
+    private var registered: HotKey?
+    private let hud = DictationHUD()
 
     /// Asks for the two permissions dictation needs: the microphone, and Accessibility (to type).
     static func requestPermissions() {
@@ -49,7 +52,14 @@ final class DictationService: ObservableObject {
 
     /// Registers or unregisters the hotkey to match the preference. Safe to call any number of times.
     func refresh() {
-        DictationPrefs.isEnabled() ? register() : unregister()
+        guard DictationPrefs.isEnabled() else { return unregister() }
+        if hotKey != nil, registered != HotKey.load() {
+            // Keep the handler; only the key changes.
+            if let hotKey { UnregisterEventHotKey(hotKey) }
+            hotKey = nil
+            registered = nil
+        }
+        register()
     }
 
     private func register() {
@@ -74,9 +84,17 @@ final class DictationService: ObservableObject {
             }
         }
         let id = EventHotKeyID(signature: 0x4552_5348, id: 1)  // 'ERSH'
-        let status = RegisterEventHotKey(UInt32(kVK_Space), UInt32(controlKey | optionKey), id,
+        let key = HotKey.load()
+        let status = RegisterEventHotKey(key.keyCode, key.modifiers, id,
                                          GetApplicationEventTarget(), 0, &hotKey)
-        if status != noErr { log("Dictation: could not register Control+Option+Space (\(status)).") }
+        if status == noErr {
+            registered = key
+        } else {
+            hotKey = nil
+            registered = nil
+            log("Dictation: could not register \(key.display) (\(status)).")
+            notify("Another app already uses \(key.display). Choose a different shortcut in Settings → Dictation.")
+        }
     }
 
     private func unregister() {
@@ -84,6 +102,8 @@ final class DictationService: ObservableObject {
         if let handler { RemoveEventHandler(handler) }
         hotKey = nil
         handler = nil
+        registered = nil
+        hud.hide()
         // Turning it off mid-hold must not leave the microphone open.
         send(.keyUp(at: ProcessInfo.processInfo.systemUptime))
     }
@@ -99,6 +119,7 @@ final class DictationService: ObservableObject {
         let actions = session.handle(event)
         updateTicker()
         for action in actions { apply(action) }
+        hud.update(state: session.state, level: { [weak self] in self?.recorder?.level ?? -160 })
     }
 
     /// A one-second tick runs only while listening, so the core can stop a stuck key.
