@@ -44,6 +44,8 @@ final class DictationService: ObservableObject {
     /// A shortcut another app refused to give up; not retried until the saved shortcut changes.
     private var rejectedKey: HotKey?
     private let hud = DictationHUD()
+    /// The app and window dictation started in (ADR-2611071800); nil when unknown. Cleared when idle.
+    private var pasteTarget: PasteTarget?
     /// The target window's outline, read once at key-down; nil when off or nothing sensible to draw.
     private var highlightFrame: CGRect?
     let highlighter = WindowHighlighter()
@@ -150,6 +152,9 @@ final class DictationService: ObservableObject {
         if pressed, session.state == .idle {
             session = DictationSession(DictationSession.Config(toggle: DictationPrefs.isToggle()))
             highlightFrame = DictationPrefs.isHighlightEnabled() ? captureTargetWindow() : nil
+            let target = currentPasteTarget()
+            let ownPID = ProcessInfo.processInfo.processIdentifier
+            pasteTarget = (target?.pid == ownPID) ? nil : target
         }
         send(pressed ? .keyDown(at: now, meetingRecording: isMeetingRecording()) : .keyUp(at: now))
     }
@@ -173,6 +178,7 @@ final class DictationService: ObservableObject {
         let actions = session.handle(event)
         updateTicker()
         for action in actions { apply(action) }
+        if session.state == .idle { pasteTarget = nil }
         refreshHUD()
     }
 
@@ -193,28 +199,38 @@ final class DictationService: ObservableObject {
     /// The outline of the frontmost app's focused window, in AppKit coordinates, or nil. Reads
     /// geometry only (position and size): never a title or any text. Skipped during secure input.
     private func captureTargetWindow() -> CGRect? {
-        guard !IsSecureEventInputEnabled() else { return nil }
         guard let app = NSWorkspace.shared.frontmostApplication,
-              app.bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
-        let element = AXUIElementCreateApplication(app.processIdentifier)
+              app.bundleIdentifier != Bundle.main.bundleIdentifier,
+              let target = currentPasteTarget(), let axFrame = target.frame else { return nil }
+        let screens = NSScreen.screens
+        let flipped = WindowHighlight.appKitFrame(fromAX: axFrame,
+                                                  primaryHeight: screens.first?.frame.height ?? 0)
+        return WindowHighlight.rect(forWindow: flipped, screens: screens.map(\.frame))
+    }
+
+    /// The frontmost app's pid and its focused window's raw AX frame (the same space for both reads),
+    /// or nil with no frontmost app or during secure input. Geometry only: never a title or any text.
+    private func currentPasteTarget() -> PasteTarget? {
+        guard !IsSecureEventInputEnabled() else { return nil }
+        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+        let pid = app.processIdentifier
+        let element = AXUIElementCreateApplication(pid)
         func copy(_ attribute: String, of source: AXUIElement) -> CFTypeRef? {
             var value: CFTypeRef?
             return AXUIElementCopyAttributeValue(source, attribute as CFString, &value) == .success ? value : nil
         }
         guard let raw = copy(kAXFocusedWindowAttribute, of: element) ?? copy(kAXMainWindowAttribute, of: element),
-              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return PasteTarget(pid: pid, frame: nil) }
         let window = raw as! AXUIElement
         guard let posRef = copy(kAXPositionAttribute, of: window), CFGetTypeID(posRef) == AXValueGetTypeID(),
               let sizeRef = copy(kAXSizeAttribute, of: window), CFGetTypeID(sizeRef) == AXValueGetTypeID()
-        else { return nil }
+        else { return PasteTarget(pid: pid, frame: nil) }
         var origin = CGPoint.zero
         var size = CGSize.zero
         guard AXValueGetValue(posRef as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size) else { return nil }
-        let screens = NSScreen.screens
-        let flipped = WindowHighlight.appKitFrame(fromAX: CGRect(origin: origin, size: size),
-                                                  primaryHeight: screens.first?.frame.height ?? 0)
-        return WindowHighlight.rect(forWindow: flipped, screens: screens.map(\.frame))
+              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+        else { return PasteTarget(pid: pid, frame: nil) }
+        return PasteTarget(pid: pid, frame: CGRect(origin: origin, size: size))
     }
 
     /// A one-second tick runs only while listening, so the core can stop a stuck key.
@@ -412,6 +428,15 @@ final class DictationService: ObservableObject {
             board.setString(text, forType: .string)
             send(.inserted)
             notify("Earshot can't type for you yet, so what you said is on the clipboard: press ⌘V to paste it. To type automatically, allow Earshot in System Settings → Privacy & Security → Accessibility.")
+            return
+        }
+        if PasteGuard.decide(target: pasteTarget, current: currentPasteTarget()) == .hold {
+            // The clipboard is the only copy of the text here, so no transient markers.
+            let held = NSPasteboard.general
+            held.clearContents()
+            held.setString(text, forType: .string)
+            send(.inserted)
+            notify("You switched windows, so what you said is on the clipboard. Press ⌘V where you want it.")
             return
         }
         let board = NSPasteboard.general
