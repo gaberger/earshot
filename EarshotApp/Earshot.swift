@@ -1028,6 +1028,7 @@ struct SettingsView: View {
     @State private var loginNotice: String?
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
+    @State private var dictionaryText = DictationDictionary.load().asText
 
     /// On means registered, whether or not macOS still wants the user to approve it in Login Items.
     private var openAtLogin: Bool { loginStatus == .enabled || loginStatus == .requiresApproval }
@@ -1131,6 +1132,18 @@ struct SettingsView: View {
                 if let hotKeyNotice {
                     Label(hotKeyNotice, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Corrections")
+                    Text("One per line, as: what Earshot hears => how to write it. Example: ear shot => Earshot")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $dictionaryText)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(height: 90)
+                        .onChange(of: dictionaryText) { _, text in
+                            DictationDictionary(parsing: text).save()
+                        }
                 }
                 if dictationEnabled && !AXIsProcessTrusted() {
                     Label("Earshot is not allowed to type for you yet. Turn it on in System Settings → Privacy & Security → Accessibility.",
