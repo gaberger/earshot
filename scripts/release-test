@@ -3,7 +3,7 @@
 # Exit 0 only if every check passed AND at least MIN_CHECKS ran (a run that checks nothing fails).
 set -u
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/release"
-MIN_CHECKS=14
+MIN_CHECKS=16
 pass=0; fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export RELEASE_SKIP_TESTS=1 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -66,6 +66,12 @@ d=$(fresh); rm "$d/docs/releases/1.0.5.md"; notes "$d" 1.1.0
 rel "$d" minor >/dev/null 2>&1; [[ $(cat "$d/VERSION") == 1.1.0 ]] && ok "minor bump" || bad "minor bump"
 d=$(fresh); rm "$d/docs/releases/1.0.5.md"; notes "$d" 2.0.0
 rel "$d" major >/dev/null 2>&1; [[ $(cat "$d/VERSION") == 2.0.0 ]] && ok "major bump" || bad "major bump"
+
+echo "leading zeros are decimal, not octal"
+d=$(fresh); echo 1.0.08 > "$d/VERSION"; git -C "$d" commit -qam v108; rm "$d/docs/releases/1.0.5.md"; notes "$d" 1.0.9
+expect_ok "patch on 1.0.08 does not abort" rel "$d" patch --dry-run
+d=$(fresh); echo 1.0.9 > "$d/VERSION"; git -C "$d" commit -qam v109; rm "$d/docs/releases/1.0.5.md"; notes "$d" 1.0.010
+expect_ok "1.0.010 is newer than 1.0.9" rel "$d" 1.0.010 --dry-run
 
 echo "push"
 d=$(fresh); git init -q --bare "$tmp/remote.git"; git -C "$d" remote add origin "$tmp/remote.git"
