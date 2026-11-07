@@ -2,7 +2,7 @@
 import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case recordings, dictation
+    case recordings, dictation, settings
 
     var id: String { rawValue }
 
@@ -10,6 +10,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .recordings: return "Recordings"
         case .dictation: return "Dictation"
+        case .settings: return "Settings"
         }
     }
 
@@ -17,6 +18,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .recordings: return "waveform"
         case .dictation: return "keyboard"
+        case .settings: return "gearshape"
         }
     }
 }
@@ -30,7 +32,7 @@ struct SidebarNav: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            ForEach(AppSection.allCases) { section in
+            ForEach([AppSection.recordings, AppSection.dictation]) { section in
                 let selected = selection == section
                 Button { selection = section } label: {
                     HStack(spacing: 8) {

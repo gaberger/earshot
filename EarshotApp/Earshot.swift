@@ -16,6 +16,7 @@ import UserNotifications
 @main
 struct EarshotApp: App {
     @StateObject private var library = Library()
+    @StateObject private var nav = Navigator()
 
     init() {
         Prefs.migrate()
@@ -23,7 +24,7 @@ struct EarshotApp: App {
 
     var body: some Scene {
         WindowGroup(id: MainWindow.id) {
-            ContentView(lib: library)
+            ContentView(lib: library, nav: nav)
                 .frame(minWidth: 1180, minHeight: 560)
                 // Files opened from Finder ("Open With", or dropped on the Dock icon).
                 .onOpenURL { library.importFile($0) }
@@ -38,6 +39,11 @@ struct EarshotApp: App {
                 }
             }
             CommandGroup(replacing: .help) { HelpMenuItem() }
+            CommandGroup(replacing: .appSettings) { SettingsCommand(nav: nav) }
+            CommandGroup(after: .textEditing) {
+                Button("Search") { nav.focusSearch += 1 }
+                    .keyboardShortcut("k", modifiers: .command)
+            }
             CommandGroup(after: .newItem) {
                 RecordCommands(lib: library)
             }
@@ -52,17 +58,34 @@ struct EarshotApp: App {
         }
         .defaultSize(width: 640, height: 720)
 
-        Settings {
-            SettingsView()
-        }
-
         // Quick access from the menu bar, like Plaud: record, see the timer, open recent recordings.
         MenuBarExtra {
-            MenuBarPanel(lib: library)
+            MenuBarPanel(lib: library, nav: nav)
         } label: {
             MenuBarLabel(lib: library)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Which page the main window shows, shared with the menu bar and the menu commands.
+final class Navigator: ObservableObject {
+    @Published var section: AppSection = .recordings
+    @Published var focusSearch = 0
+}
+
+/// The Settings… menu item: Settings is a page in the main window.
+struct SettingsCommand: View {
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject var nav: Navigator
+
+    var body: some View {
+        Button("Settings…") {
+            nav.section = .settings
+            openWindow(id: MainWindow.id)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        .keyboardShortcut(",", modifiers: .command)
     }
 }
 
@@ -1069,12 +1092,6 @@ struct SettingsView: View {
             }
 
             Section {
-                Text("Dictation has its own page: choose Dictation in the sidebar of the main window.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
                 Toggle("Identify speakers", isOn: $identifySpeakers)
                 Picker("Number of speakers", selection: $speakerCount) {
                     Text("Detect automatically").tag(0)
@@ -1104,8 +1121,8 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
         .onAppear { inputs = MicRecorder.inputs(); refreshLogin() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refreshLogin() }
         .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
@@ -1377,6 +1394,7 @@ struct RetryDictationRow: View {
 /// The panel that opens from the menu bar.
 struct MenuBarPanel: View {
     @ObservedObject var lib: Library
+    @ObservedObject var nav: Navigator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -1448,7 +1466,7 @@ struct MenuBarPanel: View {
             HStack {
                 Button("Open Earshot") { open(nil) }
                 Spacer()
-                SettingsLink { Text("Settings…") }
+                Button("Settings…") { openSettings() }
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
@@ -1459,6 +1477,12 @@ struct MenuBarPanel: View {
         }
         .padding(14)
         .frame(width: 300)
+    }
+
+    private func openSettings() {
+        nav.section = .settings
+        openWindow(id: MainWindow.id)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func open(_ id: Recording.ID?) {
@@ -1475,18 +1499,6 @@ struct MenuBarPanel: View {
             openWindow(id: MainWindow.id)
         }
         NSApp.activate()
-    }
-}
-
-struct HelpButton: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button { openWindow(id: HelpView.windowID) } label: {
-            Label("Privacy", systemImage: "lock.shield")
-        }
-        .labelStyle(.titleAndIcon)
-        .help("How Earshot works, and why everything stays on this Mac (⌘?).")
     }
 }
 
@@ -1890,10 +1902,55 @@ enum Summarizer {
 
 struct ContentView: View {
     @ObservedObject var lib: Library
+    @ObservedObject var nav: Navigator
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var monitor = ResourceMonitor()
     @State private var dropTargeted = false
     @State private var newName = ""
-    @State private var section: AppSection = .recordings
+    @State private var query = ""
+    @State private var searchTexts: [String: String] = [:]
+
+    private static let destinations: [SearchDestination] = [
+        SearchDestination(id: "shortcut", title: "Shortcut", detail: "Dictation · change the dictation shortcut", keywords: ["hotkey", "keys", "press"]),
+        SearchDestination(id: "mode", title: "Mode", detail: "Dictation · hold to talk or tap to start and stop", keywords: ["hold", "tap", "toggle"]),
+        SearchDestination(id: "corrections", title: "Corrections", detail: "Dictation · fix words it mishears", keywords: ["dictionary", "words", "spelling", "replace"]),
+        SearchDestination(id: "accessibility", title: "Accessibility permission", detail: "Dictation · allow Earshot to type for you", keywords: ["permission", "privacy"]),
+        SearchDestination(id: "microphone", title: "Microphone", detail: "Settings · choose what Earshot records from", keywords: ["input", "mic"]),
+        SearchDestination(id: "autostop", title: "Stop recording automatically", detail: "Settings · stop after silence", keywords: ["silence", "auto", "stop"]),
+        SearchDestination(id: "speakers", title: "Speakers", detail: "Settings · identify who spoke", keywords: ["diarization", "names"]),
+        SearchDestination(id: "login", title: "Open at login", detail: "Settings · start Earshot when you log in", keywords: ["startup", "launch"]),
+    ]
+
+    private var hits: [SearchHit] {
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+        let docs = lib.items.map { SearchDoc(id: $0.id, title: $0.title, text: searchTexts[$0.id] ?? "") }
+        return SearchIndex.search(query, recordings: docs, destinations: Self.destinations)
+    }
+
+    private func pick(_ hit: SearchHit) {
+        switch hit {
+        case let .recording(id, _, _):
+            nav.section = .recordings
+            lib.selection = id
+        case let .destination(id, _, _):
+            nav.section = ["shortcut", "mode", "corrections", "accessibility"].contains(id) ? .dictation : .settings
+        }
+        query = ""
+    }
+
+    private func loadSearchTexts() async {
+        let urls = lib.items.map { ($0.id, $0.transcriptURL) }
+        let loaded = await Task.detached(priority: .utility) { () -> [String: String] in
+            var out: [String: String] = [:]
+            for (id, url) in urls {
+                if let text = try? String(contentsOf: url, encoding: .utf8) {
+                    out[id] = String(text.prefix(20000))
+                }
+            }
+            return out
+        }.value
+        searchTexts = loaded
+    }
 
     private var homeItems: [HomeItem] {
         lib.items.map { r in
@@ -1930,6 +1987,35 @@ struct ContentView: View {
         return home
     }
 
+    @ViewBuilder
+    private var detailContent: some View {
+        if nav.section == .settings {
+            ScrollView { SettingsView().padding(.vertical, 12) }
+        } else if lib.recording, let start = lib.startedAt {
+            RecordingNow(lib: lib, start: start)
+        } else if nav.section == .dictation {
+            DictationPage(onEnable: { DictationService.requestPermissions() },
+                          onResetPermission: { DictationService.resetAccessibilityPermission() })
+        } else if let r = lib.selected {
+            VStack(alignment: .leading, spacing: 0) {
+                Button { lib.selection = nil } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text("Recordings")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 20)
+                .padding(.top, 12)
+                RecordingDetail(lib: lib, rec: r)
+            }
+        } else {
+            recordingsHome
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 12) {
@@ -1938,46 +2024,30 @@ struct ContentView: View {
                     Text("Earshot").font(.headline)
                     Spacer()
                 }
-                SidebarNav(selection: $section)
+                SidebarNav(selection: $nav.section)
                 Spacer()
                 SidebarStatusCard(ready: !lib.recording,
                                   detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
+                SidebarFooter(settingsSelected: nav.section == .settings,
+                              onSettings: { nav.section = .settings },
+                              onHelp: { openWindow(id: HelpView.windowID) })
             }
             .padding(12)
             .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
         } detail: {
-            Group {
-                if lib.recording, let start = lib.startedAt {
-                    RecordingNow(lib: lib, start: start)
-                } else if section == .dictation {
-                    DictationPage(onEnable: { DictationService.requestPermissions() },
-                                  onResetPermission: { DictationService.resetAccessibilityPermission() })
-                } else if let r = lib.selected {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Button { lib.selection = nil } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                Text("Recordings")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                TopBar(title: nav.section.title, query: $query, hits: hits,
+                       focusToken: nav.focusSearch, onPick: pick)
+                detailContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .bottom) {
+                        if nav.section == .recordings {
+                            RecordBar(recordingSince: lib.startedAt,
+                                      onRecord: lib.toggleRecording,
+                                      onImport: { if lib.recording { return }; lib.chooseFile() })
+                                .padding(.bottom, 16)
                         }
-                        .buttonStyle(.plain)
-                        .padding(.leading, 20)
-                        .padding(.top, 12)
-                        RecordingDetail(lib: lib, rec: r)
                     }
-                } else {
-                    recordingsHome
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if section == .recordings {
-                    RecordBar(recordingSince: lib.startedAt,
-                              onRecord: lib.toggleRecording,
-                              onImport: { if lib.recording { return }; lib.chooseFile() })
-                        .padding(.bottom, 16)
-                }
             }
             .overlay(alignment: .bottom) {
                 if let notice = lib.notice {
@@ -1990,6 +2060,7 @@ struct ContentView: View {
                 }
             }
         }
+        .task(id: lib.items.map(\.id)) { await loadSearchTexts() }
         .navigationTitle("Earshot")
         .toolbar { HeaderControls(lib: lib) }
         // A status bar along the bottom, as in Finder and Xcode: what's happening, and the meter.
@@ -2021,7 +2092,7 @@ struct ContentView: View {
             Text("You changed this summary by hand. A new summary replaces your changes, and this can't be undone.")
         }
         .onChange(of: lib.selection) {
-            if lib.selection != nil { section = .recordings }
+            if lib.selection != nil { nav.section = .recordings }
         }
         .onChange(of: lib.renaming) {
             newName = lib.items.first { $0.id == lib.renaming }?.title ?? ""
@@ -2045,18 +2116,6 @@ struct HeaderControls: ToolbarContent {
     @ObservedObject var lib: Library
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            HelpButton()
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            SettingsLink {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .labelStyle(.titleAndIcon)
-            .help("Choose which microphone to record from (⌘,).")
-        }
-
         // Icons plus words, so nobody has to guess what a symbol means.
         ToolbarItemGroup(placement: .primaryAction) {
             Toggle(isOn: $lib.translate) {
