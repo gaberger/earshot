@@ -45,6 +45,27 @@ import AppKit
             return AnyView(DictationSettingsView(onEnable: {}).padding(24).frame(width: 680)
                 .background(Color(nsColor: .windowBackgroundColor)))
         }),
+        ("home", {
+            let now = Date()
+            let items: [HomeItem] = [
+                .init(id: "a", date: now, title: "Weekly sync with the platform team", detail: "42 min · transcribed · summarized", state: .done),
+                .init(id: "b", date: now.addingTimeInterval(-3 * 3600), title: "Call with Priya", detail: "18 min · transcribed", state: .done),
+                .init(id: "c", date: now.addingTimeInterval(-5 * 3600), title: "product-meeting-0910.m4a", detail: "Imported file · 1 h 04 min", state: .working),
+                .init(id: "d", date: now.addingTimeInterval(-86400), title: "Recording 2026-11-05 16:12", detail: "6 min", state: .failed("Could not transcribe: the audio file is empty")),
+                .init(id: "e", date: now.addingTimeInterval(-86400 - 7200), title: "Roadmap review", detail: "55 min · transcribed · summarized", state: .done),
+            ]
+            return AnyView(
+                HomeView(shortcut: "⌃⌥Space", dictationOn: true, items: items, onOpen: { _ in })
+                    .overlay(alignment: .bottom) { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
+                    .frame(width: 760, height: 640)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("sidebar-status", {
+            AnyView(VStack(spacing: 16) {
+                SidebarStatusCard(ready: true, detail: "Whisper · MacBook Pro Microphone")
+                SidebarStatusCard(ready: false, detail: "Recording… 12:41")
+            }.padding(16).frame(width: 260).background(Color(nsColor: .windowBackgroundColor)))
+        }),
     ]
 }
 
