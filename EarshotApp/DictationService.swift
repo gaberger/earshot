@@ -219,18 +219,24 @@ final class DictationService: ObservableObject {
             var value: CFTypeRef?
             return AXUIElementCopyAttributeValue(source, attribute as CFString, &value) == .success ? value : nil
         }
+        func token(_ ref: CFTypeRef?) -> Int? {
+            guard let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
+            return Int(bitPattern: UInt(CFHash(ref)))
+        }
+        let focus = token(copy(kAXFocusedUIElementAttribute, of: element))
         guard let raw = copy(kAXFocusedWindowAttribute, of: element) ?? copy(kAXMainWindowAttribute, of: element),
-              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return PasteTarget(pid: pid, frame: nil) }
+              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return PasteTarget(pid: pid, frame: nil, focus: focus) }
         let window = raw as! AXUIElement
+        let windowToken = token(raw)
         guard let posRef = copy(kAXPositionAttribute, of: window), CFGetTypeID(posRef) == AXValueGetTypeID(),
               let sizeRef = copy(kAXSizeAttribute, of: window), CFGetTypeID(sizeRef) == AXValueGetTypeID()
-        else { return PasteTarget(pid: pid, frame: nil) }
+        else { return PasteTarget(pid: pid, frame: nil, window: windowToken, focus: focus) }
         var origin = CGPoint.zero
         var size = CGSize.zero
         guard AXValueGetValue(posRef as! AXValue, .cgPoint, &origin),
               AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
-        else { return PasteTarget(pid: pid, frame: nil) }
-        return PasteTarget(pid: pid, frame: CGRect(origin: origin, size: size))
+        else { return PasteTarget(pid: pid, frame: nil, window: windowToken, focus: focus) }
+        return PasteTarget(pid: pid, frame: CGRect(origin: origin, size: size), window: windowToken, focus: focus)
     }
 
     /// A one-second tick runs only while listening, so the core can stop a stuck key.
