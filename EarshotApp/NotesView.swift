@@ -7,83 +7,113 @@ struct NoteItem: Identifiable, Equatable {
     let id: String
     var date: Date
     var text: String
-    var app: String?
     var seconds: Double?
 }
 
 struct NotesView: View {
     let items: [NoteItem]
-    let keepLog: Bool
-    let shortcut: String
+    let recordingSince: Date?
+    let transcribing: Bool
+    let level: () -> Float
+    let onRecord: () -> Void
+    let onStop: () -> Void
     let onCopy: (String) -> Void
     let onDelete: (String) -> Void
     let onClear: () -> Void
 
-    @State private var selectedApp: String? = nil
     @State private var confirmClear = false
+    @State private var pulse = false
 
-    init(items: [NoteItem], keepLog: Bool, shortcut: String,
+    init(items: [NoteItem], recordingSince: Date?, transcribing: Bool, level: @escaping () -> Float,
+         onRecord: @escaping () -> Void, onStop: @escaping () -> Void,
          onCopy: @escaping (String) -> Void, onDelete: @escaping (String) -> Void, onClear: @escaping () -> Void) {
         self.items = items
-        self.keepLog = keepLog
-        self.shortcut = shortcut
+        self.recordingSince = recordingSince
+        self.transcribing = transcribing
+        self.level = level
+        self.onRecord = onRecord
+        self.onStop = onStop
         self.onCopy = onCopy
         self.onDelete = onDelete
         self.onClear = onClear
     }
 
-    private var topApps: [(name: String, count: Int)] {
-        var counts: [String: Int] = [:]
-        for item in items { if let app = item.app, !app.isEmpty { counts[app, default: 0] += 1 } }
-        let sorted = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-        return sorted.prefix(4).map { (name: $0.key, count: $0.value) }
-    }
-
-    private var visibleItems: [NoteItem] {
-        let base = selectedApp.map { app in items.filter { $0.app == app } } ?? items
-        return base.sorted { $0.date > $1.date }
-    }
+    private var sortedItems: [NoteItem] { items.sorted { $0.date > $1.date } }
 
     private var groups: [(day: Date, items: [NoteItem])] {
         let cal = Calendar.current
-        let byDay = Dictionary(grouping: visibleItems) { cal.startOfDay(for: $0.date) }
+        let byDay = Dictionary(grouping: sortedItems) { cal.startOfDay(for: $0.date) }
         return byDay.keys.sorted(by: >).map { (day: $0, items: byDay[$0] ?? []) }
+    }
+
+    private var busy: Bool { recordingSince != nil || transcribing }
+
+    private var recordButton: some View {
+        Button(action: onRecord) {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle().fill(Color.red).frame(width: 22, height: 22)
+                    Circle().fill(Color.white).frame(width: 10, height: 10)
+                }
+                Text("Record a note").font(.body.weight(.semibold)).lineLimit(1)
+            }
+            .fixedSize()
+            .padding(.leading, 8)
+            .padding(.trailing, 16)
+            .frame(height: 38)
+            .background(Capsule().fill(Color.primary.opacity(0.08)))
+            .overlay(Capsule().stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .opacity(busy ? 0.5 : 1)
+    }
+
+    private var titleText: some View {
+        Text("Notes").font(.largeTitle.bold()).lineLimit(1)
+    }
+
+    private var header: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                titleText
+                Spacer(minLength: 12)
+                recordButton
+            }
+            .frame(minWidth: 460 - 56)
+            VStack(alignment: .leading, spacing: 12) {
+                titleText
+                recordButton
+            }
+        }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Notes").font(.largeTitle.bold())
-                    Text("What you dictate, kept on this Mac as text. The audio is deleted at once.")
+                    header
+                    Text("Your own voice notes. Press Record, speak, and the text is saved here. Nothing is typed into other apps.")
                         .font(.title3)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if keepLog && !items.isEmpty {
-                    HStack(spacing: 12) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                pill("All · \(items.count)", selected: selectedApp == nil) { selectedApp = nil }
-                                ForEach(topApps, id: \.name) { app in
-                                    pill("\(app.name) · \(app.count)", selected: selectedApp == app.name) { selectedApp = app.name }
-                                }
-                            }
-                        }
+                if let since = recordingSince {
+                    recordingCard(since)
+                } else if transcribing {
+                    transcribingCard
+                }
+
+                if !items.isEmpty {
+                    HStack {
+                        Spacer()
                         Button("Clear all") { confirmClear = true }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .fixedSize()
                     }
-                }
-
-                if !keepLog {
-                    emptyState("text.badge.xmark", "The notes log is off. Turn on Keep a log in the Dictation page.")
-                } else if items.isEmpty {
-                    emptyState("mic", "Nothing here yet. Hold \(shortcut) in any app and speak: what you say is typed there and kept here.")
-                } else if visibleItems.isEmpty {
-                    emptyState("line.3.horizontal.decrease", "No notes from this app.")
-                } else {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(groups.enumerated()), id: \.element.day) { groupIndex, group in
                             VStack(alignment: .leading, spacing: 0) {
@@ -101,6 +131,8 @@ struct NotesView: View {
                             }
                         }
                     }
+                } else if !busy {
+                    emptyState("mic", "No notes yet. Press Record a note and say what is on your mind.")
                 }
             }
             .padding(.horizontal, 28)
@@ -112,8 +144,74 @@ struct NotesView: View {
             Button("Delete all", role: .destructive) { onClear() }
             Button("Cancel", role: .cancel) {}
         }
-        .onChange(of: items) { _, newItems in
-            if let app = selectedApp, !newItems.contains(where: { $0.app == app }) { selectedApp = nil }
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) { content() }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+    }
+
+    private static func clock(_ seconds: Int) -> String {
+        let s = max(0, seconds)
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    private func recordingCard(_ since: Date) -> some View {
+        card {
+            HStack(spacing: 8) {
+                Circle().fill(Color.red).frame(width: 10, height: 10)
+                    .opacity(pulse ? 0.35 : 1)
+                    .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+                Text("Recording").font(.headline).lineLimit(1)
+                Spacer(minLength: 8)
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    Text(Self.clock(Int(ctx.date.timeIntervalSince(since))))
+                        .font(.title3.monospacedDigit())
+                        .lineLimit(1)
+                }
+            }
+            waveform
+            Button(action: onStop) {
+                Label("Stop", systemImage: "stop.fill").lineLimit(1)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .fixedSize()
+        }
+        .onAppear { pulse = true }
+    }
+
+    private var transcribingCard: some View {
+        card {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Transcribing on this Mac…").font(.headline).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var waveform: some View {
+        TimelineView(.animation(minimumInterval: 0.08)) { ctx in
+            let db = Double(level())
+            let norm = 0.08 + 0.92 * min(1, max(0, (db + 60) / 60))
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            let loud = db > -50
+            HStack(spacing: 3) {
+                ForEach(0..<40, id: \.self) { i in
+                    let x = Double(i)
+                    let shape = 0.675 + 0.325 * sin(x * 0.55 + t * 3.1) * cos(x * 0.21 - t * 1.7)
+                    let h = max(4, 36 * norm * shape)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(loud ? Color.red : Color.secondary)
+                        .frame(maxWidth: 4, minHeight: h, maxHeight: h)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 36)
         }
     }
 
@@ -129,21 +227,6 @@ struct NotesView: View {
         .padding(.vertical, 40)
     }
 
-    private func pill(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.callout.weight(selected ? .semibold : .regular))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .foregroundStyle(selected ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 12)
-                .frame(height: 28)
-                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.08)))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
     private func row(_ item: NoteItem) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text(item.date.formatted(date: .omitted, time: .shortened)
@@ -157,7 +240,7 @@ struct NotesView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.text)
                     .font(.body)
-                    .lineLimit(6)
+                    .lineLimit(8)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 if let meta = metaLine(item) {
@@ -183,13 +266,9 @@ struct NotesView: View {
     }
 
     private func metaLine(_ item: NoteItem) -> String? {
-        var parts: [String] = []
-        if let app = item.app, !app.isEmpty { parts.append(app) }
-        if let secs = item.seconds {
-            let total = Int(secs.rounded())
-            parts.append(total > 60 ? String(format: "%d:%02d s", total / 60, total % 60) : "\(total) s")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        guard let secs = item.seconds else { return nil }
+        let total = Int(secs.rounded())
+        return total > 60 ? String(format: "%d:%02d", total / 60, total % 60) : "\(total) s"
     }
 
     private func dayTitle(_ day: Date) -> String {
