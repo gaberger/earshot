@@ -111,7 +111,7 @@ let go. A second or two later the text appears where your cursor is.
   to **Transcribing…** after you let go, then disappears as the text arrives. It never takes focus
   from the field you're typing into.
 
-- It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once.
+- It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
 - The microphone is open only while you hold the keys. A tap shorter than a third of a second does
   nothing, and a hold stops by itself after a minute.
 - It types by pasting, then puts back whatever was on your clipboard.
