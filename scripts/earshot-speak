@@ -100,15 +100,26 @@ def pid_path():
     return os.path.join(state_dir(), "speak.pid")
 
 
+def is_our_speech(pid):
+    want = os.path.basename(os.environ.get("EARSHOT_SAY") or "say")
+    try:
+        r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)],
+                           capture_output=True, text=True)
+    except Exception:
+        return False
+    return any(os.path.basename(tok) == want for tok in r.stdout.split())
+
+
 def stop_speech():
     p = pid_path()
     try:
         with open(p) as f:
             pid = int(f.read().strip())
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except OSError:
-            os.kill(pid, signal.SIGTERM)
+        if pid > 0 and is_our_speech(pid):
+            try:
+                os.killpg(pid, signal.SIGTERM)
+            except OSError:
+                os.kill(pid, signal.SIGTERM)
     except Exception:
         pass
     try:

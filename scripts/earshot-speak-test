@@ -14,7 +14,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "earshot-speak")
-FLOOR = 37
+FLOOR = 40
 checks = 0
 failures = 0
 
@@ -173,6 +173,26 @@ def main():
         s = run(["stop"], env=env)
         time.sleep(0.6)
         check("`stop` ends the speech", s.returncode == 0 and second > 0 and not alive(second))
+
+        # A pid file outlives the speech it names. Once the pid is reused, killing it would hit a
+        # stranger, so neither `stop` nor a new reply may signal a process that is not our say.
+        victim = subprocess.Popen(["sleep", "60"], start_new_session=True)
+        try:
+            with open(pidfile, "w") as f:
+                f.write(str(victim.pid))
+            run(["stop"], env=env)
+            time.sleep(0.5)
+            check("`stop` leaves an unrelated process named in a stale pid file alone", victim.poll() is None)
+            check("`stop` clears the stale pid file", not os.path.exists(pidfile))
+            with open(pidfile, "w") as f:
+                f.write(str(victim.pid))
+            hook({"last_assistant_message": "Another reply."})
+            time.sleep(0.8)
+            check("a new reply leaves an unrelated process in a stale pid file alone", victim.poll() is None)
+        finally:
+            victim.kill()
+            victim.wait()
+        run(["stop"], env=env)
 
         off = run(["off"], env=env)
         check("`off` removes the flag file", off.returncode == 0 and not os.path.exists(os.path.join(state, "voice-on")))
