@@ -238,6 +238,7 @@ final class Library: ObservableObject {
     private var starting = false
     private var savedTranscript = ""
     let dictation = DictationService()
+    let notes = NotesStore()
 
     init() {
         dir = home.appendingPathComponent("Recordings/whisper")
@@ -256,6 +257,9 @@ final class Library: ObservableObject {
         dictation.runHelper = { await Library.run($0) }
         dictation.log = { [weak self] in self?.log($0) }
         dictation.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
+        dictation.onDictated = { [weak self] text, app, seconds in
+            MainActor.assumeIsolated { self?.notes.add(text: text, app: app, seconds: seconds) }
+        }
         dictation.refresh()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                object: nil, queue: .main) { [weak self] _ in

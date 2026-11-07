@@ -13,6 +13,12 @@ enum DictationPrefs {
     static func isToggle(_ d: UserDefaults = .standard) -> Bool {
         d.object(forKey: toggle) as? Bool ?? false
     }
+
+    static let keepLog = "dictationKeepLog"
+
+    static func isKeepingLog(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: keepLog) as? Bool ?? true
+    }
 }
 
 /// Decides what push-to-talk dictation does next, from key events, transcription results and the

@@ -22,6 +22,10 @@ final class DictationService: ObservableObject {
     var runHelper: ([String]) async -> String? = { _ in "No transcriber is set up." }
     var log: (String) -> Void = { _ in }
     var microphoneID: () -> String = { "" }
+    /// Called with (text, frontmost app name, seconds held) just before a dictation is typed.
+    var onDictated: ((String, String?, Double?) -> Void)?
+    private var captureStart: TimeInterval?
+    private var heldSeconds: Double?
 
     /// True while a failed clip is kept and `retryLast()` can try it again.
     @Published private(set) var retryAvailable = false
@@ -167,7 +171,11 @@ final class DictationService: ObservableObject {
         case .startCapture: startCapture()
         case .stopCapture: stopCapture()
         case .discardCapture: discardCapture()
-        case .insert(let text): paste(text)
+        case .insert(let text):
+            if DictationPrefs.isKeepingLog() {
+                onDictated?(text, NSWorkspace.shared.frontmostApplication?.localizedName, heldSeconds)
+            }
+            paste(text)
         case .notice(let message): notify(message)
         }
     }
@@ -201,6 +209,8 @@ final class DictationService: ObservableObject {
             }
             recorder = new
             new.start()
+            captureStart = ProcessInfo.processInfo.systemUptime
+            heldSeconds = nil
             if let tink = NSSound(named: "Tink") {
                 tink.volume = 0.3
                 tink.play()
@@ -215,6 +225,10 @@ final class DictationService: ObservableObject {
         // The finished callback carries on from here. If there is no recorder, nothing will
         // call back, so fail now instead of waiting forever.
         guard let recorder else { return send(.failed) }
+        if let start = captureStart {
+            heldSeconds = max(0, ProcessInfo.processInfo.systemUptime - start)
+            captureStart = nil
+        }
         recorder.stop()
     }
 
