@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Gate for `transcribe -r`: a failed recording must exit non-zero, a Ctrl+C stop must not.
+
+Run: python3 -I scripts/transcribe-test
+Stubs ffmpeg and whisper-cli on PATH. Fails itself if fewer than MIN_CHECKS checks ran.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+MIN_CHECKS = 5
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCRIPT = os.path.join(HERE, "transcribe")
+checks = failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", str(detail)[:300])
+
+
+def run(ffmpeg_body):
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "models").mkdir()
+        (d / "models" / "ggml-large-v3-turbo.bin").write_text("x")
+        (d / "bin").mkdir()
+        for name, body in (("ffmpeg", ffmpeg_body), ("whisper-cli", "exit 0")):
+            p = d / "bin" / name
+            p.write_text("#!/bin/sh\n" + body + "\n")
+            p.chmod(0o755)
+        env = dict(os.environ, PATH=f"{d / 'bin'}:/usr/bin:/bin", HOME=str(d),
+                   WHISPER_MODEL_DIR=str(d / "models"), WHISPER_REC_DIR=str(d / "rec"))
+        r = subprocess.run(["bash", SCRIPT, "-r"], env=env, capture_output=True, text=True, timeout=30)
+        return r
+
+
+# Mic denied / no device: ffmpeg fails and creates nothing.
+# The stub only misbehaves for the avfoundation (record) call; the later wav conversion succeeds.
+REC = 'case "$*" in *avfoundation*) ;; *) exit 0;; esac; for last; do :; done; '
+r = run(REC + "exit 1")
+check("failed recording exits non-zero", r.returncode != 0, r.returncode)
+check("failed recording says so on stderr", "Recording failed" in r.stderr, r.stderr)
+
+# Empty output file is also a failure.
+r = run(REC + ': > "$last"; exit 1')
+check("empty recording exits non-zero", r.returncode != 0, r.returncode)
+
+# Ctrl+C stop: ffmpeg wrote audio then exited 255. Must proceed to transcription and exit 0.
+r = run(REC + 'echo data > "$last"; exit 255')
+check("user-stopped recording exits 0", r.returncode == 0, (r.returncode, r.stderr))
+check("user-stopped recording is transcribed", "Transcribing:" in r.stdout, r.stdout)
+
+if checks < MIN_CHECKS:
+    print(f"FAIL: only {checks} checks ran, need {MIN_CHECKS}")
+    sys.exit(1)
+sys.exit(1 if failures else 0)
