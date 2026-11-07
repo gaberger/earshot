@@ -233,6 +233,18 @@ final class DictationService: ObservableObject {
             current: PasteTarget(pid: current.pid, frame: current.frame, window: w.1, focus: f.1))
     }
 
+    /// One diagnostic line for the paste guard: plain words only, never text, titles, names or content.
+    private static func pasteCheckLine(target: TargetSnapshot?, current: TargetSnapshot?, decision: PasteDecision) -> String {
+        func word(_ a: AXUIElement?, _ b: AXUIElement?) -> String {
+            guard let a, let b else { return "unreadable" }
+            return CFEqual(a, b) ? "equal" : "different"
+        }
+        guard let target, let current else {
+            return "Dictation: paste check — target snapshot: \(target != nil), current snapshot: \(current != nil), decision: \(decision == .hold ? "hold" : "paste")"
+        }
+        return "Dictation: paste check — app same: \(target.pid == current.pid), window: \(word(target.window, current.window)), focus: \(word(target.focus, current.focus)), decision: \(decision == .hold ? "hold" : "paste")"
+    }
+
     /// The frontmost app's pid and its focused window's raw AX frame (the same space for both reads),
     /// or nil with no frontmost app or during secure input. Geometry only: never a title or any text.
     private func currentSnapshot() -> TargetSnapshot? {
@@ -459,7 +471,10 @@ final class DictationService: ObservableObject {
             notify("Earshot can't type for you yet, so what you said is on the clipboard: press ⌘V to paste it. To type automatically, allow Earshot in System Settings → Privacy & Security → Accessibility.")
             return
         }
-        if Self.pasteDecision(target: pasteTarget, current: currentSnapshot()) == .hold {
+        let currentNow = currentSnapshot()
+        let decision = Self.pasteDecision(target: pasteTarget, current: currentNow)
+        log(Self.pasteCheckLine(target: pasteTarget, current: currentNow, decision: decision))
+        if decision == .hold {
             // The clipboard is the only copy of the text here, so no transient markers.
             let held = NSPasteboard.general
             held.clearContents()
