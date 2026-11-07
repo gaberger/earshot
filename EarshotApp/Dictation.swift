@@ -6,6 +6,9 @@ import Foundation
 /// With `Config.toggle` set it is tap to start, tap to stop: a key up is ignored, and a second key
 /// down stops capture unless it comes within `minimumHold` of the first (a bounce).
 ///
+/// A `retry` event re-runs transcription of a kept clip: from idle it moves to transcribing without
+/// starting capture (refused with a notice during a meeting); in any other state it does nothing.
+///
 /// It fails toward "type nothing". Text that never appears costs the user one more key press; text
 /// typed into the wrong place, or into a password field, cannot be taken back. So:
 /// - A press shorter than `minimumHold` is a tap, not dictation: the capture is thrown away.
@@ -54,6 +57,9 @@ struct DictationSession {
         case transcript(String?, secureInput: Bool)
         case inserted
         case failed
+        /// Transcribe the kept clip again after a failure. Only acts from idle; the app then sends
+        /// `.transcript` as usual.
+        case retry(meetingRecording: Bool)
     }
 
     enum Action: Equatable {
@@ -82,6 +88,13 @@ struct DictationSession {
             heldSince = t
             state = .listening
             return [.startCapture]
+
+        case (.idle, .retry(let meetingRecording)):
+            if meetingRecording {
+                return [.notice("Dictation is off while a meeting is being recorded.")]
+            }
+            state = .transcribing
+            return []
 
         case (.listening, .keyDown(let t, _)) where config.toggle:
             // Second tap: a press inside the minimum hold is a bounce, not a request to stop.

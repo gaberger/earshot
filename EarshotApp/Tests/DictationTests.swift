@@ -142,8 +142,34 @@ func isNotice(_ a: [DictationSession.Action]) -> Bool {
         a = s.handle(.keyUp(at: 2))
         checkTrue("hold: letting go still stops capture", a == [.stopCapture] && s.state == .transcribing)
 
+        // MARK: retrying a clip that failed to transcribe (ADR-2611062045)
+        var r = DictationSession()
+        a = r.handle(.retry(meetingRecording: false))
+        checkTrue("retry from idle goes to transcribing and starts no capture", a.isEmpty && r.state == .transcribing, "\(a) \(r.state)")
+        a = r.handle(.transcript("Try again", secureInput: false))
+        checkTrue("a retried transcript is inserted like any other", a == [.insert("Try again")] && r.state == .inserting, "\(a)")
+        r = DictationSession()
+        _ = r.handle(.retry(meetingRecording: false))
+        a = r.handle(.transcript("Try again", secureInput: true))
+        checkTrue("a retried transcript still never goes into a secure field", isNotice(a) && r.state == .idle, "\(a)")
+        r = DictationSession()
+        _ = r.handle(.retry(meetingRecording: false))
+        a = r.handle(.transcript(nil, secureInput: false))
+        checkTrue("a retry that fails again says so and goes idle", isNotice(a) && r.state == .idle, "\(a)")
+        r = DictationSession()
+        a = r.handle(.retry(meetingRecording: true))
+        checkTrue("retry is refused while a meeting is being recorded", isNotice(a) && r.state == .idle, "\(a)")
+        r = DictationSession()
+        _ = r.handle(.keyDown(at: 0, meetingRecording: false))
+        a = r.handle(.retry(meetingRecording: false))
+        checkTrue("retry while listening is ignored", a.isEmpty && r.state == .listening, "\(a) \(r.state)")
+        r = DictationSession()
+        _ = r.handle(.retry(meetingRecording: false))
+        a = r.handle(.keyDown(at: 1, meetingRecording: false))
+        checkTrue("a key press while a retry is transcribing is ignored", a.isEmpty && r.state == .transcribing, "\(a)")
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 47 { print("VACUOUS: only \(checks) checks ran, need 47"); exit(1) }
+        if checks < 54 { print("VACUOUS: only \(checks) checks ran, need 54"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }

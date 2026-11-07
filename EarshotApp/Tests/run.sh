@@ -15,7 +15,7 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library EndO
 # CallStartTests also uses @main and fails itself if fewer than 10 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library CallStart.swift Tests/CallStartTests.swift -o "$out/call-start-tests"
 "$out/call-start-tests"
-# DictationTests also uses @main and fails itself if fewer than 47 checks ran.
+# DictationTests also uses @main and fails itself if fewer than 54 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/DictationTests.swift -o "$out/dictation-tests"
 "$out/dictation-tests"
 # HotKeyTests also uses @main and fails itself if fewer than 30 checks ran.
