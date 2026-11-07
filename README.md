@@ -112,7 +112,13 @@ let go. A second or two later the text appears where your cursor is.
   from the field you're typing into.
 
 - It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
-- **Notes.** Each dictation is also kept as a note: the text, the time, the app it went into and how long you held the keys. Open **Notes** in the sidebar to browse them by day, copy one or delete it. They are stored only on this Mac, as text, in `~/Library/Application Support/Earshot/dictations.json`; the audio is never kept. Turn the log off, or delete every note, under **Dictation → Notes log**.
+- **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved.
+
+### Notes: your own voice notes
+
+**Notes** is a separate area, with its own **Record a note** button. Press it, speak, press **Stop**, and the note is transcribed on this Mac and saved in the Notes list, grouped by day, with Copy and Delete on each. Nothing is typed into other apps. Only the text is kept, in `~/Library/Application Support/Earshot/notes.json`; the audio is deleted at once. Corrections from **Dictation** apply to notes too. A note cannot start while a meeting is being recorded or while you are dictating. **Clear all** deletes every note.
+
+Earshot now has three separate functions: **Recordings** (meetings and calls), **Notes** (voice notes you record in Earshot) and **Dictation** (typing into any app).
 - The microphone is open only while you hold the keys. A tap shorter than a third of a second does
   nothing, and a hold stops by itself after a minute.
 - It types by pasting, then puts back whatever was on your clipboard.
