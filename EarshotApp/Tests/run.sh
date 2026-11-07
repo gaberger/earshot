@@ -30,3 +30,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Sear
 # DictationLogTests also uses @main and fails itself if fewer than 17 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationLog.swift Tests/DictationLogTests.swift -o "$out/dictation-log-tests"
 "$out/dictation-log-tests"
+# NoteSessionTests also uses @main and fails itself if fewer than 17 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift NoteSession.swift Tests/NoteSessionTests.swift -o "$out/note-session-tests"
+"$out/note-session-tests"
