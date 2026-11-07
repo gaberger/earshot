@@ -13,7 +13,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FLOOR = 134
+FLOOR = 163
 checks = 0
 failures = 0
 DOCS = ["INSTALL", "GUIDE", "PRIVACY", "AGENTS", "DEVELOPMENT"]
@@ -186,6 +186,29 @@ check("SECURITY.md names what is out of scope, including the app not being notar
 check("SECURITY.md describes what to expect without promising a fix date", "acknowledg" in sl and "days" in sl)
 check("README links to SECURITY.md", "SECURITY.md" in readme)
 check("docs/PRIVACY.md links to the security policy", "SECURITY.md" in P)
+
+# MARK: acknowledgements: credit for inspiration, and notices for what Earshot uses
+ack = read("docs/ACKNOWLEDGEMENTS.md")
+check("docs/ACKNOWLEDGEMENTS.md exists", ack is not None)
+K = ack or ""
+kl = K.lower()
+check("ACKNOWLEDGEMENTS has exactly one H1", sum(1 for h in headings(K) if h.startswith("# ")) == 1)
+check("ACKNOWLEDGEMENTS has no emoji", not EMOJI.search(K))
+check("ACKNOWLEDGEMENTS is between 25 and 90 lines", 25 <= len(K.splitlines()) <= 90, len(K.splitlines()))
+check("it says Earshot was designed and built on its own", "designed and built on its own" in kl)
+check("it says no code was copied", "no code was copied" in kl)
+for name in ["OpenSuperWhisper", "Voicebox", "Super Whisper"]:
+    check("it thanks: %s" % name, name in K)
+for url in ["github.com/my-monkeys/OpenSuperWhisper", "github.com/jamiepine/voicebox", "github.com/ggml-org/whisper.cpp",
+            "github.com/k2-fsa/sherpa-onnx", "github.com/snakers4/silero-vad", "github.com/wenet-e2e/wespeaker", "github.com/astral-sh/uv"]:
+    check("it links to: %s" % url, url in K)
+for comp in ["whisper.cpp", "Silero", "sherpa-onnx", "pyannote", "WeSpeaker", "uv", "ffmpeg", "Foundation Models"]:
+    check("the components table lists: %s" % comp, comp.lower() in kl)
+check("it states MIT and Apache 2.0 licenses", "mit" in kl and "apache" in kl)
+check("it is honest that the WeSpeaker model's own terms are not checked", "wespeaker" in kl and ("not checked" in kl or "unchecked" in kl))
+check("it says ffmpeg is installed separately and not bundled", "ffmpeg" in kl and "not bundled" in kl)
+check("README links to docs/ACKNOWLEDGEMENTS.md", "docs/ACKNOWLEDGEMENTS.md" in readme)
+check("every local link in ACKNOWLEDGEMENTS resolves", all(os.path.exists(os.path.normpath(os.path.join(ROOT, "docs", x.split("#")[0]))) for x in local_targets(K)))
 
 print("%d checks, %d failed" % (checks, failures))
 if checks < FLOOR:

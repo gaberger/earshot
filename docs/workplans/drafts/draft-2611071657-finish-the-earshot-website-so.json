@@ -1,0 +1,15 @@
+{
+  "adr": "ADR-2026-04-11-0227",
+  "created_at": "2026-11-07T16:57:13.956980-05:00",
+  "id": "draft-2611071657-finish-the-earshot-website-so",
+  "kind": "workplan-draft",
+  "next_steps": [
+    "Run /hexa-feature-dev to expand this draft into a full workplan",
+    "Or run `hexa plan drafts approve draft-2611071657-finish-the-earshot-website-so.json`",
+    "Or run `hexa plan drafts clear --name draft-2611071657-finish-the-earshot-website-so`"
+  ],
+  "notes": "This is a draft created by ADR-2026-04-11-0227 auto-invoke. It contains only the original prompt — no specs, steps, or tiers have been generated yet. The planner agent will fill these in when the draft is picked up.",
+  "origin": "auto-invoke",
+  "prompt": "Finish the Earshot website so it matches the app and can be published. (1) Restyle site/ to the app look: dark charcoal surfaces, hairline borders, rounded cards, flame orange #F97316 accent with #B93C0A for light-mode text, concept B logo; redraw assets/earshot-logo.svg to match the new icon. (2) Re-render the app screenshots at 2x with the new accent (EarshotApp/Tests/render.sh) and add a full recording-detail render with a summary and a speaker-labelled transcript. (3) Apply the design review: static or one-row header on phones with scroll-padding, wrapped and keyboard-focusable install code blocks, no -- ligature, dark-scheme band contrast, hero background, empty areas, duplicate Install heading. (4) Apply docs/website/copy.md corrections from the claims review and keep python3 -I site/check.py green. (5) Add real captures of the dictation flame outline and the Listening/Transcribing/Tidying pill (needs Screen Recording permission for the terminal, or manual capture). (6) Release gate: do not publish until the dictation branch is merged to main and released (for example 1.1.0) with matching README and release notes; then add a GitHub Pages workflow that deploys site/.",
+  "status": "pending-planner"
+}

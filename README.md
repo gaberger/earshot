@@ -70,6 +70,7 @@ Download the disk image from the latest release, drag Earshot to Applications an
 - [Development](docs/DEVELOPMENT.md)
 - [Release notes](docs/releases)
 - [Security policy](SECURITY.md)
+- [Acknowledgements](docs/ACKNOWLEDGEMENTS.md)
 
 <div align="center">
 <sub>Open source under the <a href="LICENSE">MIT License</a>. Built on <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a>, <a href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> and Apple Foundation Models.</sub>
