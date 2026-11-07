@@ -1990,12 +1990,22 @@ struct ContentView: View {
     @ViewBuilder
     private var detailContent: some View {
         if nav.section == .settings {
-            ScrollView { SettingsView().padding(.vertical, 12) }
-        } else if lib.recording, let start = lib.startedAt {
-            RecordingNow(lib: lib, start: start)
+            ScrollView {
+                VStack(spacing: 0) {
+                    DictationSettingsView(onEnable: { DictationService.requestPermissions() },
+                                          onResetPermission: { DictationService.resetAccessibilityPermission() })
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                    SettingsView()
+                }
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
+            }
         } else if nav.section == .dictation {
             DictationPage(onEnable: { DictationService.requestPermissions() },
                           onResetPermission: { DictationService.resetAccessibilityPermission() })
+        } else if lib.recording, let start = lib.startedAt {
+            RecordingNow(lib: lib, start: start)
         } else if let r = lib.selected {
             VStack(alignment: .leading, spacing: 0) {
                 Button { lib.selection = nil } label: {

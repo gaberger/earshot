@@ -123,6 +123,17 @@ import AppKit
                 SidebarFooter(settingsSelected: true, onSettings: {}, onHelp: {})
             }.padding(16).frame(width: 260).background(Color(nsColor: .windowBackgroundColor)))
         }),
+        ("home-narrow", {
+            let now = Date()
+            let items: [HomeItem] = [
+                .init(id: "a", date: now, title: "Second quarter planning with the whole platform team", detail: "42 min · transcribed · summarized", state: .done),
+                .init(id: "b", date: now.addingTimeInterval(-3 * 3600 - 1800), title: "BOA call", detail: "Not transcribed yet", state: .done),
+                .init(id: "c", date: now.addingTimeInterval(-9 * 3600), title: "Recording 2026-10-30 12:04", detail: "6 min", state: .failed("Could not transcribe: the audio file is empty")),
+            ]
+            return AnyView(HomeView(items: items, onOpen: { _ in })
+                .overlay(alignment: .bottom) { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
+                .frame(width: 380, height: 640).background(Color(nsColor: .windowBackgroundColor)))
+        }),
     ]
 }
 
