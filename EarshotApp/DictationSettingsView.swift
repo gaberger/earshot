@@ -200,7 +200,7 @@ struct DictationSettingsView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: "lock.fill").font(.caption2)
-                    Text("Nothing is typed into password fields. The audio is deleted at once, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it. The text you dictate is kept in Notes unless you turn the log off.")
+                    Text("Nothing is typed into password fields. The audio is deleted at once, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.footnote)

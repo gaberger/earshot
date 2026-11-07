@@ -18,8 +18,8 @@ final class NotesStore: ObservableObject {
         refresh()
     }
 
-    func add(text: String, app: String?, seconds: Double?) {
-        log.add(DictationLog.Entry(id: UUID().uuidString, date: Date(), text: text, app: app, seconds: seconds))
+    func add(text: String, seconds: Double?) {
+        log.add(DictationLog.Entry(id: UUID().uuidString, date: Date(), text: text, app: nil, seconds: seconds))
         commit()
     }
 
@@ -39,6 +39,6 @@ final class NotesStore: ObservableObject {
     }
 
     private func refresh() {
-        items = log.entries.map { NoteItem(id: $0.id, date: $0.date, text: $0.text, app: $0.app, seconds: $0.seconds) }
+        items = log.entries.map { NoteItem(id: $0.id, date: $0.date, text: $0.text, seconds: $0.seconds) }
     }
 }

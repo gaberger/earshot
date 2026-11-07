@@ -59,15 +59,10 @@ struct SidebarNav: View {
 struct DictationPage: View {
     let onEnable: () -> Void
     let onResetPermission: () -> Void
-    let onClearNotes: () -> Void
-    @AppStorage(DictationPrefs.keepLog) private var keepLog = true
-    @State private var confirmingClear = false
 
-    init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void,
-         onClearNotes: @escaping () -> Void = {}) {
+    init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void) {
         self.onEnable = onEnable
         self.onResetPermission = onResetPermission
-        self.onClearNotes = onClearNotes
     }
 
     var body: some View {
@@ -81,25 +76,6 @@ struct DictationPage: View {
                 }
 
                 DictationSettingsView(onEnable: onEnable, onResetPermission: onResetPermission)
-
-                SettingsSection("Notes log") {
-                    SettingsRow("Keep a log of what I dictate",
-                                detail: "Each dictation is saved as text on this Mac and shows in Notes. Audio is never kept.") {
-                        Toggle("", isOn: $keepLog)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                    }
-                    SettingsRow("Clear all notes",
-                                detail: "Deletes every saved note. This cannot be undone.") {
-                        Button("Clear…") { confirmingClear = true }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                    }
-                }
-            }
-            .confirmationDialog("Delete all saved notes?", isPresented: $confirmingClear) {
-                Button("Delete all", role: .destructive) { onClearNotes() }
-                Button("Cancel", role: .cancel) {}
             }
             .padding(.horizontal, 28)
             .padding(.top, 24)

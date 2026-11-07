@@ -239,6 +239,7 @@ final class Library: ObservableObject {
     private var savedTranscript = ""
     let dictation = DictationService()
     let notes = NotesStore()
+    let noteRecorder = NoteRecorder()
 
     init() {
         dir = home.appendingPathComponent("Recordings/whisper")
@@ -257,9 +258,14 @@ final class Library: ObservableObject {
         dictation.runHelper = { await Library.run($0) }
         dictation.log = { [weak self] in self?.log($0) }
         dictation.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
-        dictation.onDictated = { [weak self] text, app, seconds in
-            MainActor.assumeIsolated { self?.notes.add(text: text, app: app, seconds: seconds) }
-        }
+        noteRecorder.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        noteRecorder.isDictationBusy = { [weak self] in self?.dictation.isBusy ?? false }
+        noteRecorder.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
+        noteRecorder.runHelper = { await Library.run($0) }
+        noteRecorder.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
+        noteRecorder.log = { [weak self] in self?.log($0) }
+        noteRecorder.onNotice = { [weak self] in self?.notice = $0 }
+        noteRecorder.onSaved = { [weak self] text, secs in self?.notes.add(text: text, seconds: secs) }
         dictation.refresh()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -342,6 +348,7 @@ final class Library: ObservableObject {
 
     private func startRecording() {
         guard !starting else { return }
+        noteRecorder.stop()
         starting = true
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             Task { @MainActor in
@@ -1906,10 +1913,12 @@ enum Summarizer {
 
 struct NotesPage: View {
     @ObservedObject var store: NotesStore
-    @AppStorage(DictationPrefs.keepLog) private var keepLog = true
+    @ObservedObject var recorder: NoteRecorder
 
     var body: some View {
-        NotesView(items: store.items, keepLog: keepLog, shortcut: HotKey.load().display,
+        NotesView(items: store.items, recordingSince: recorder.recordingSince,
+                  transcribing: recorder.transcribing, level: { recorder.level },
+                  onRecord: { recorder.start() }, onStop: { recorder.stop() },
                   onCopy: { text in
                       NSPasteboard.general.clearContents()
                       NSPasteboard.general.setString(text, forType: .string)
@@ -1937,8 +1946,7 @@ struct ContentView: View {
         SearchDestination(id: "microphone", title: "Microphone", detail: "Settings · choose what Earshot records from", keywords: ["input", "mic"]),
         SearchDestination(id: "autostop", title: "Stop recording automatically", detail: "Settings · stop after silence", keywords: ["silence", "auto", "stop"]),
         SearchDestination(id: "speakers", title: "Speakers", detail: "Settings · identify who spoke", keywords: ["diarization", "names"]),
-        SearchDestination(id: "noteslog", title: "Notes log", detail: "Notes · what you dictated, kept on this Mac", keywords: ["notes", "log", "history", "dictations"]),
-        SearchDestination(id: "keeplog", title: "Keep a log of what I dictate", detail: "Dictation · save dictated text as notes", keywords: ["log", "history", "privacy"]),
+        SearchDestination(id: "noteslog", title: "Notes", detail: "Notes · record a voice note", keywords: ["notes", "record", "voice", "memo"]),
         SearchDestination(id: "login", title: "Open at login", detail: "Settings · start Earshot when you log in", keywords: ["startup", "launch"]),
     ]
 
@@ -1957,7 +1965,7 @@ struct ContentView: View {
             if id == "noteslog" {
                 nav.section = .notes
             } else {
-                nav.section = ["shortcut", "mode", "corrections", "accessibility", "keeplog"].contains(id) ? .dictation : .settings
+                nav.section = ["shortcut", "mode", "corrections", "accessibility"].contains(id) ? .dictation : .settings
             }
         }
         query = ""
@@ -2028,10 +2036,9 @@ struct ContentView: View {
             }
         } else if nav.section == .dictation {
             DictationPage(onEnable: { DictationService.requestPermissions() },
-                          onResetPermission: { DictationService.resetAccessibilityPermission() },
-                          onClearNotes: { lib.notes.clear() })
+                          onResetPermission: { DictationService.resetAccessibilityPermission() })
         } else if nav.section == .notes {
-            NotesPage(store: lib.notes)
+            NotesPage(store: lib.notes, recorder: lib.noteRecorder)
         } else if lib.recording, let start = lib.startedAt {
             RecordingNow(lib: lib, start: start)
         } else if let r = lib.selected {
