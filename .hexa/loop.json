@@ -92,24 +92,49 @@
       "updated": "2026-11-06T23:09:40.703611+00:00"
     },
     "af3b401a-8528-4ed1-9708-c8d9eb9f55ce": {
-      "adr": "ADR-2611062045",
+      "adr": "ADR-2611062130",
       "files": [
         "docs/adrs/ADR-2611062045-dictation-dictionary-and-tap-to-toggle.md",
         "EarshotApp/Tests/DictionaryTests.swift",
         "README.md",
         "EarshotApp/Tests/DictationTests.swift",
-        "EarshotApp/Tests/RenderUI.swift"
+        "EarshotApp/Tests/RenderUI.swift",
+        "docs/adrs/ADR-2611062130-restyle-the-whole-app.md"
       ],
       "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
       "last_run": {
-        "at": "2026-11-07T02:10:04.526790+00:00",
-        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift DictationSettingsView.swift",
+        "at": "2026-11-07T02:16:45.042011+00:00",
+        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift DictationSettingsView.swift",
         "stage": "build"
       },
       "pid": 39595,
       "pid_start": null,
       "stage": "gate",
-      "updated": "2026-11-07T02:10:04.526798+00:00"
+      "tasks": [
+        {
+          "done_at": "2026-11-07T02:14:21.023373+00:00",
+          "status": "done",
+          "title": "Kit: cards, rows, banners, chips (done)"
+        },
+        {
+          "status": "doing",
+          "title": "Settings pages in a sidebar"
+        },
+        {
+          "done_at": "2026-11-07T02:20:08.067395+00:00",
+          "status": "done",
+          "title": "Home: greeting, cards, filter pills, day-grouped feed"
+        },
+        {
+          "status": "todo",
+          "title": "Shell: sidebar brand + status card, slim toolbar, floating Record bar"
+        },
+        {
+          "status": "todo",
+          "title": "Menu bar panel and Listening pill"
+        }
+      ],
+      "updated": "2026-11-07T02:20:08.067529+00:00"
     },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
