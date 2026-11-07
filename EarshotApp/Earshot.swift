@@ -1023,6 +1023,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
     @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
     @AppStorage(DictationPrefs.enabled) private var dictationEnabled = false
+    @AppStorage(DictationPrefs.toggle) private var dictationToggle = false
     @State private var inputs: [AVCaptureDevice] = []
     @State private var loginStatus = SMAppService.mainApp.status
     @State private var loginNotice: String?
@@ -1112,7 +1113,7 @@ struct SettingsView: View {
                     .onChange(of: dictationEnabled) { _, on in
                         if on { DictationService.requestPermissions() }
                     }
-                Text("Hold \(hotKey.display), speak, and let go. Earshot types what you said into the app you are in. "
+                Text("Press \(hotKey.display) to dictate, speak, and let go (or tap again, in tap mode). Earshot types what you said into the app you are in. "
                      + "A small Listening… indicator shows while it hears you. "
                      + "Needs Microphone and Accessibility access. Nothing is typed into password fields, and the audio is not kept.")
                     .font(.caption)
@@ -1128,6 +1129,10 @@ struct SettingsView: View {
                             }
                         }
                     }
+                }
+                Picker("Mode", selection: $dictationToggle) {
+                    Text("Hold to talk").tag(false)
+                    Text("Tap to start, tap to stop").tag(true)
                 }
                 if let hotKeyNotice {
                     Label(hotKeyNotice, systemImage: "exclamationmark.triangle")
