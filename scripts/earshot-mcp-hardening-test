@@ -1,0 +1,570 @@
+#!/usr/bin/env python3
+"""Second gate for ADR-2611071100: hostile filesystems, hostile protocol input, search edge cases,
+pipelining, concurrent mutation and privacy. Drives the real scripts/earshot-mcp over stdio.
+
+Run: python3 -I scripts/earshot-mcp-hardening-test
+Fails itself if fewer than MIN_CHECKS checks ran (a vacuous pass is a failed gate).
+"""
+import json
+import os
+import queue
+import random
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import unicodedata
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SERVER = os.path.join(HERE, "earshot-mcp")
+MIN_CHECKS = 100
+CANARY = "CANARY-7f3a9c-ZQXJ"
+checks = 0
+failures = 0
+all_stderr = []
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", str(detail)[:300])
+
+
+class Srv:
+    def __init__(self, rec_dir, env_extra=None, unset=False, cwd=None, home=None):
+        env = {k: v for k, v in os.environ.items() if k != "WHISPER_REC_DIR"}
+        if home is not None:
+            env["HOME"] = home
+        if rec_dir is not None:
+            env["WHISPER_REC_DIR"] = rec_dir
+        if env_extra:
+            env.update(env_extra)
+        self.p = subprocess.Popen([sys.executable, "-I", SERVER], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=cwd)
+        self.q = queue.Queue()
+        self.raw = []
+        self.err = []
+        self.n = 0
+        threading.Thread(target=self._pump_out, daemon=True).start()
+        threading.Thread(target=self._pump_err, daemon=True).start()
+
+    def _pump_out(self):
+        for line in iter(self.p.stdout.readline, b""):
+            self.raw.append(line)
+            self.q.put(line)
+        self.q.put(None)
+
+    def _pump_err(self):
+        self.err_done = threading.Event()
+        for line in iter(self.p.stderr.readline, b""):
+            self.err.append(line)
+        self.err_done.set()
+
+    def send_bytes(self, b):
+        try:
+            self.p.stdin.write(b)
+            self.p.stdin.flush()
+        except (BrokenPipeError, OSError):
+            pass
+
+    def send(self, obj):
+        self.send_bytes(json.dumps(obj).encode() + b"\n")
+
+    def recv(self, timeout=10):
+        try:
+            line = self.q.get(timeout=timeout)
+        except queue.Empty:
+            return "TIMEOUT"
+        if line is None:
+            return None
+        try:
+            return json.loads(line)
+        except ValueError:
+            return "NOTJSON:%r" % line[:100]
+
+    def request(self, method, params=None, timeout=10, **extra):
+        self.n += 1
+        msg = {"jsonrpc": "2.0", "id": self.n, "method": method}
+        if params is not None:
+            msg["params"] = params
+        msg.update(extra)
+        self.send(msg)
+        return self.recv(timeout)
+
+    def call(self, name, timeout=10, **args):
+        return self.request("tools/call", {"name": name, "arguments": args}, timeout)
+
+    def finish(self, timeout=10):
+        try:
+            self.p.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.p.kill()
+            self.p.wait()
+        self.err_done.wait(5)
+        err = b"".join(self.err).decode("utf-8", "replace")
+        all_stderr.append(err)
+        return err
+
+
+def text_of(r):
+    return "".join(c.get("text", "") for c in r["result"]["content"])
+
+
+def is_err(r):
+    return isinstance(r, dict) and "result" in r and r["result"].get("isError") is True
+
+
+def is_ok(r):
+    return isinstance(r, dict) and "result" in r and r["result"].get("isError") in (None, False)
+
+
+def rpc_code(r):
+    return r.get("error", {}).get("code") if isinstance(r, dict) else None
+
+
+def main():
+    if not os.path.exists(SERVER):
+        print("FAIL scripts/earshot-mcp does not exist")
+        sys.exit(1)
+    root = tempfile.mkdtemp()
+    try:
+        run(root)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    check("privacy: the transcript canary never appears on stderr in any run",
+          all(CANARY not in e for e in all_stderr) and len(all_stderr) >= 8,
+          "%d runs" % len(all_stderr))
+    print("%d checks, %d failed" % (checks, failures))
+    if checks < MIN_CHECKS:
+        print("VACUOUS: only %d checks ran, need %d" % (checks, MIN_CHECKS))
+        sys.exit(1)
+    sys.exit(0 if failures == 0 else 1)
+
+
+def run(root):
+    rec = os.path.join(root, "rec")
+    os.mkdir(rec)
+    outside = os.path.join(root, "secret")
+    with open(outside, "w") as f:
+        f.write("SECRETWORD outside the directory")
+
+    def put(name, body, mode="w"):
+        with open(os.path.join(rec, name), mode) as f:
+            f.write(body)
+
+    # ---------- filesystem hostility ----------
+    put("good.txt", "plain text with %s inside\n" % CANARY)
+    os.symlink(outside, os.path.join(rec, "x.txt"))
+    put("lnk.txt", "real transcript\n")
+    os.symlink(outside, os.path.join(rec, "lnk.summary.md"))
+    os.symlink(outside, os.path.join(rec, "lnk.name"))
+    os.mkfifo(os.path.join(rec, "f.txt"))
+    os.mkdir(os.path.join(rec, "d.txt"))
+    put(".txt", "empty stem")
+    put("a..b.txt", "dotdot inside")
+    surrogate_made = True
+    try:
+        put_b = os.path.join(os.fsencode(rec), b"sur\xffx.txt")
+        with open(put_b, "wb") as f:
+            f.write(b"bad name")
+    except OSError:
+        surrogate_made = False  # APFS refuses invalid UTF-8 names; nothing to list then
+    put("noperm.txt", "unreadable")
+    os.chmod(os.path.join(rec, "noperm.txt"), 0)
+    put("badutf.txt", "", "w")
+    with open(os.path.join(rec, "badutf.txt"), "wb") as f:
+        f.write(b"before \xff\xfe after")
+    with open(os.path.join(rec, "big.txt"), "wb") as f:
+        f.write(b"A" * (8 * 1024 * 1024 + 1000))
+    put("mid.txt", "line one\nline two\n")
+
+    s = Srv(rec)
+    s.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})
+    r = s.call("list_recordings")
+    rows = json.loads(text_of(r))
+    ids = [x["id"] for x in rows]
+    check("list: ok result", is_ok(r), r)
+    check("list: symlinked x.txt is absent", "x" not in ids, ids)
+    check("list: FIFO f.txt is absent", "f" not in ids, ids)
+    check("list: directory d.txt is absent", "d" not in ids, ids)
+    check("list: empty-stem .txt is absent", "" not in ids and ".txt" not in ids, ids)
+    check("list: a..b.txt is absent", "a..b" not in ids, ids)
+    check("list: surrogate-escaped name is absent", not any("\udcff" in i or i.startswith("sur") for i in ids), ids)
+    check("list: chmod 000 file is skipped", "noperm" not in ids, ids)
+    check("list: the plain recording is present", "good" in ids and "lnk" in ids and "big" in ids, ids)
+    lnk = [x for x in rows if x["id"] == "lnk"][0]
+    check("list: symlinked .name is not followed (display name is the id)", lnk["name"] == "lnk", lnk)
+    check("list: has_summary is a real bool", all(isinstance(x["has_summary"], bool) for x in rows))
+    check("list: modified is an ISO-8601 UTC string", all(x["modified"].endswith("+00:00") for x in rows), rows[:1])
+
+    r = s.call("get_transcript", id="x")
+    check("get: symlinked transcript is refused and leaks nothing", is_err(r) and "SECRETWORD" not in json.dumps(r), r)
+    r = s.call("get_summary", id="lnk")
+    check("get: symlinked summary is refused and leaks nothing", is_err(r) and "SECRETWORD" not in json.dumps(r), r)
+    r = s.call("search", query="SECRETWORD")
+    check("search: nothing reached through symlinks", is_ok(r) and json.loads(text_of(r)) == [], r)
+    t0 = time.time()
+    r = s.call("get_transcript", timeout=5, id="f")
+    check("get: FIFO is an error within 2 seconds", is_err(r) and time.time() - t0 < 2, (r, time.time() - t0))
+    p = s.request("ping")
+    check("ping still works after the FIFO", isinstance(p, dict) and p.get("result") == {}, p)
+    r = s.call("get_transcript", id="d")
+    check("get: directory d.txt is an error", is_err(r), r)
+    r = s.call("get_transcript", id="a..b")
+    check("get: a..b is refused", is_err(r), r)
+    r = s.call("get_transcript", id="")
+    check("get: empty id is refused", is_err(r), r)
+    r = s.call("get_transcript", id="x" * 300)
+    check("get: a 300-byte id is isError, not -32603", is_err(r), r)
+    r = s.call("get_transcript", id="é" * 130)
+    check("get: a 260-byte multibyte id is isError", is_err(r), r)
+    r = s.call("get_transcript", id="\udcff")
+    check("get: a lone-surrogate id is isError", is_err(r) or rpc_code(r) is not None and rpc_code(r) != -32603, r)
+    r = s.call("get_transcript", id="noperm")
+    check("get: chmod 000 file is isError", is_err(r) or os.geteuid() == 0, r)
+    r = s.call("get_transcript", id=123)
+    check("get: a non-string id is isError", is_err(r), r)
+    r = s.call("get_transcript", id="badutf")
+    check("get: invalid UTF-8 still returns a result", is_ok(r) and "before" in text_of(r) and "after" in text_of(r), r)
+    r = s.call("get_transcript", id="big")
+    t = text_of(r)
+    check("get: a huge file is cut to the output limit with a continuation marker",
+          is_ok(r) and "[truncated: showing chars" in t and "call again with offset=" in t and len(t) < 210000, t[-200:])
+    check("get: the file-cap marker is present for a file larger than 8 MiB", "[file truncated at 8 MiB]" in t, t[-200:])
+    r = s.call("get_transcript", id="big", offset=200000, limit=10)
+    check("get: offset and limit slice the text", is_ok(r) and text_of(r).startswith("A" * 10), text_of(r)[:80])
+    r = s.call("get_transcript", id="good")
+    check("get: a small file comes back byte for byte", text_of(r) == "plain text with %s inside\n" % CANARY, r)
+    r = s.call("get_transcript", id="good", offset="x")
+    check("get: a bad offset type is isError", is_err(r), r)
+    r = s.call("get_transcript", id="good", limit=-5)
+    check("get: a negative limit is isError or clamped, never a crash", is_err(r) or is_ok(r), r)
+    r = s.call("get_transcript", id="good", offset=10**12)
+    check("get: an offset past the end does not crash", is_err(r) or is_ok(r), r)
+    r = s.request("tools/list")
+    check("every tool description carries the untrusted-data warning",
+          all("untrusted" in t["description"] for t in r["result"]["tools"]), r)
+    check("get_summary requires exactly id",
+          [t for t in r["result"]["tools"] if t["name"] == "get_summary"][0]["inputSchema"]["required"] == ["id"])
+    r = s.request("initialize", {"protocolVersion": "2024-11-05"})
+    check("initialize echoes a supported version", r["result"]["protocolVersion"] == "2024-11-05", r)
+    r = s.request("initialize", {"protocolVersion": "2025-03-26"})
+    check("initialize does not advertise batch-era 2025-03-26", r["result"]["protocolVersion"] == "2025-06-18", r)
+    r = s.request("initialize", {"protocolVersion": ["x"]})
+    check("initialize with an unhashable version falls back", is_ok(r) or isinstance(r.get("result"), dict), r)
+    err = s.finish()
+    check("fs run: clean exit 0 and empty stderr", s.p.returncode == 0 and err == "", (s.p.returncode, err[:200]))
+
+    # ---------- environment: empty / unset / missing / late directory ----------
+    cwd = os.path.join(root, "cwd")
+    home = os.path.join(root, "home")
+    os.mkdir(cwd)
+    os.mkdir(home)
+    with open(os.path.join(cwd, "cwdfile.txt"), "w") as f:
+        f.write("cwd transcript")
+    for label, rd in (("empty", ""), ("unset", None)):
+        e = Srv(rd, cwd=cwd, home=home)
+        r = e.call("list_recordings")
+        check("env: %s WHISPER_REC_DIR never lists cwd files" % label, is_ok(r) and json.loads(text_of(r)) == [], r)
+        e.finish()
+    late = os.path.join(root, "late")
+    e = Srv(late)
+    r = e.call("list_recordings")
+    check("env: nonexistent dir lists []", is_ok(r) and json.loads(text_of(r)) == [], r)
+    r = e.call("search", query="anything")
+    check("env: nonexistent dir searches to []", is_ok(r) and json.loads(text_of(r)) == [], r)
+    os.mkdir(late)
+    with open(os.path.join(late, "later.txt"), "w") as f:
+        f.write("arrived later")
+    r = e.call("list_recordings")
+    check("env: a directory created after startup is picked up", [x["id"] for x in json.loads(text_of(r))] == ["later"], r)
+    err = e.finish()
+    check("env: startup stderr line names the missing dir",
+          err.strip() == "earshot-mcp: recordings dir not found: " + late, repr(err))
+
+    # ---------- protocol hardness ----------
+    prec = os.path.join(root, "prec")
+    os.mkdir(prec)
+    with open(os.path.join(prec, "one.txt"), "w") as f:
+        f.write("protocol fixture %s\n" % CANARY)
+    s = Srv(prec)
+    s.send_bytes(b"\xff\xfe\xfd garbage\n")
+    r = s.recv()
+    check("proto: invalid UTF-8 on stdin gives -32700", rpc_code(r) == -32700 and r.get("id") is None, r)
+    p = s.request("ping")
+    check("proto: ping answered after invalid UTF-8", isinstance(p, dict) and p.get("result") == {}, p)
+    s.send_bytes(b"[" * 100000 + b"\n")
+    r = s.recv()
+    check("proto: 100k-deep nesting gives -32700", rpc_code(r) == -32700, r)
+    p = s.request("ping")
+    check("proto: server survives deep nesting", isinstance(p, dict) and p.get("result") == {}, p)
+    s.send([{"jsonrpc": "2.0", "id": 1, "method": "ping"}])
+    r = s.recv()
+    check("proto: a batch array gives -32600", rpc_code(r) == -32600 and r.get("id") is None, r)
+    s.send_bytes(b'{"jsonrpc":"2.0","id":1,"method":"ping","pad":"' + b"a" * (5 * 1024 * 1024) + b'"}\n')
+    r = s.recv()
+    check("proto: a 5 MiB line gives -32600", rpc_code(r) == -32600 and r.get("id") is None, r)
+    p = s.request("ping")
+    check("proto: the request after the oversized line is answered correctly (and no second error)",
+          isinstance(p, dict) and p.get("id") == s.n and p.get("result") == {}, p)
+    for label, rid in (("0", 0), ('""', "")):
+        s.send({"jsonrpc": "2.0", "id": rid, "method": "ping"})
+        r = s.recv()
+        check("proto: id %s gets a reply with the same id" % label,
+              isinstance(r, dict) and r.get("id") == rid and r.get("result") == {}, r)
+    for label, raw in (("null", b"null"), ("true", b"true"), ("{}", b"{}"), ("[]", b"[]")):
+        s.send_bytes(b'{"jsonrpc":"2.0","id":' + raw + b',"method":"ping"}\n')
+        r = s.recv()
+        check("proto: id %s gets -32600 with id null" % label, rpc_code(r) == -32600 and r.get("id") is None, r)
+    s.send_bytes(b'{"jsonrpc":"2.0","id":NaN,"method":"ping"}\n')
+    r = s.recv()
+    check("proto: id NaN is rejected with id null", rpc_code(r) in (-32600, -32700) and r.get("id") is None, r)
+    s.send({"jsonrpc": "2.0", "id": 5, "result": {}})
+    s.send({"jsonrpc": "2.0", "id": 6})
+    r = s.recv()
+    check("proto: a stray client response is ignored, a method-less request gets -32600 echoing its id",
+          rpc_code(r) == -32600 and r.get("id") == 6, r)
+    r = s.request("tools/call", {"name": {}})
+    check("proto: an unhashable tool name gives -32602", rpc_code(r) == -32602, r)
+    r = s.request("tools/call", {"name": "nope"})
+    check("proto: an unknown tool name gives -32602", rpc_code(r) == -32602, r)
+    r = s.request("tools/call", [1, 2])
+    check("proto: non-dict params give -32602", rpc_code(r) == -32602, r)
+    r = s.request("tools/call", {"name": "list_recordings", "arguments": [1]})
+    check("proto: non-dict arguments give -32602", rpc_code(r) == -32602, r)
+    s.n += 1
+    s.send({"jsonrpc": "2.0", "id": s.n, "method": "tools/list", "params": None})
+    r = s.recv()
+    check("proto: params null works", isinstance(r, dict) and len(r["result"]["tools"]) == 4, r)
+    r = s.request("tools/call", {"name": "list_recordings"})
+    check("proto: omitted arguments work", is_ok(r) and [x["id"] for x in json.loads(text_of(r))] == ["one"], r)
+    r = s.request("tools/call", {"name": "list_recordings", "arguments": None})
+    check("proto: null arguments work", is_ok(r), r)
+    r = s.call("list_recordings", limit="many")
+    check("proto: a bad limit type is isError", is_err(r), r)
+    r = s.call("search", query=["x"])
+    check("search: a non-string query is isError", is_err(r), r)
+    r = s.call("search", query="x" * 201)
+    check("search: an over-long query is isError", is_err(r), r)
+    r = s.call("search", query=" \t\n ")
+    check("search: a whitespace-only query is isError", is_err(r), r)
+    s.send_bytes(b'{"jsonrpc":"2.0","id":777,"method":"ping"}')  # no newline, then EOF
+    s.p.stdin.close()
+    r = s.recv()
+    check("proto: an unterminated final line is processed", isinstance(r, dict) and r.get("id") == 777, r)
+    s.p.wait(timeout=10)
+    err = s.finish()
+    check("proto: stdin EOF gives exit 0 with empty stderr", s.p.returncode == 0 and err == "", (s.p.returncode, err[:200]))
+
+    s = Srv(prec)
+    s.send({"jsonrpc": "2.0", "method": "no/such/thing"})
+    s.send({"jsonrpc": "2.0", "method": "tools/call", "params": [1]})
+    s.send({"jsonrpc": "2.0", "method": "tools/call", "params": {"name": {}}})
+    s.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    s.send({"jsonrpc": "2.0", "method": "ping", "params": 5})
+    err = s.finish()
+    check("proto: notifications (unknown method, bad params) produce zero stdout bytes",
+          b"".join(s.raw) == b"" and s.p.returncode == 0, (s.raw, s.p.returncode))
+
+    rfd, wfd = os.pipe()
+    env = {k: v for k, v in os.environ.items() if k != "WHISPER_REC_DIR"}
+    env["WHISPER_REC_DIR"] = prec
+    p = subprocess.Popen([sys.executable, "-I", SERVER], stdin=subprocess.PIPE, stdout=wfd,
+                         stderr=subprocess.PIPE, env=env)
+    os.close(wfd)
+    os.close(rfd)  # the client's read end is gone before the server writes anything
+    for _ in range(3):
+        try:
+            p.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"ping"}\n')
+            p.stdin.flush()
+        except OSError:
+            break
+        time.sleep(0.1)
+    try:
+        p.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait()
+    try:
+        p.stdin.close()
+    except OSError:
+        pass
+    err = p.stderr.read().decode("utf-8", "replace")
+    all_stderr.append(err)
+    check("proto: client closing its read end gives exit 0 and empty stderr",
+          p.returncode == 0 and err == "", (p.returncode, err[:200]))
+
+    # ---------- search and list ----------
+    srec = os.path.join(root, "srec")
+    os.mkdir(srec)
+
+    def sput(name, body, mt=None):
+        p = os.path.join(srec, name)
+        with open(p, "w") as f:
+            f.write(body)
+        if mt:
+            os.utime(p, (mt, mt))
+
+    sput("uni.txt", "Straße café İstanbul and Ünïcode " + CANARY + "\n", 1_700_000_100)
+    sput("wrap.txt", "alpha beta\ngamma delta\n", 1_700_000_200)
+    sput("both.txt", "nothing relevant\n", 1_700_000_300)
+    sput("both.name", "Quarterly zebra planning\n")
+    sput("both.summary.md", "zebra mentioned again\n")
+    sput("tie-a.txt", "tie text", 1_700_000_400)
+    sput("tie-b.txt", "tie text", 1_700_000_400)
+    sput("2031-01-01_000000.txt", "no date inside here\n", 1_700_000_500)
+    s = Srv(srec)
+    for q in ("İ", "ß", "STRASSE", "straße", "İstanbul", "ünïcode", "ǅ", "ﬃ"):
+        r = s.call("search", query=q)
+        check("search: %r does not raise" % q, is_ok(r) and isinstance(json.loads(text_of(r)), list), r)
+    r = s.call("search", query="straße café")
+    hits = json.loads(text_of(r))
+    check("search: a multi-word unicode query finds uni with a correct snippet",
+          len(hits) == 1 and hits[0]["id"] == "uni" and "Straße café" in hits[0]["snippet"], hits)
+    r = s.call("search", query=unicodedata.normalize("NFD", "café"))
+    hits = json.loads(text_of(r))
+    check("search: an NFD query matches NFC text", [h["id"] for h in hits] == ["uni"], hits)
+    r = s.call("search", query="İstanbul")
+    hits = json.loads(text_of(r))
+    check("search: İstanbul snippet offsets are valid", hits and "İstanbul" in hits[0]["snippet"], hits)
+    r = s.call("search", query="beta gamma")
+    hits = json.loads(text_of(r))
+    check("search: a phrase spanning a newline is found", [h["id"] for h in hits] == ["wrap"], hits)
+    check("search: hit has id, name, field and snippet",
+          set(hits[0]) == {"id", "name", "field", "snippet"} and hits[0]["field"] == "transcript", hits)
+    check("search: snippet whitespace is collapsed", "\n" not in hits[0]["snippet"], hits)
+    r = s.call("search", query="zebra")
+    hits = json.loads(text_of(r))
+    check("search: name+summary match yields exactly one hit, field name",
+          len(hits) == 1 and hits[0]["id"] == "both" and hits[0]["field"] == "name", hits)
+    r = s.call("search", query="2031-01-01")
+    check("search: a date-like id fragment does not hit through the id fallback",
+          json.loads(text_of(r)) == [], r)
+    r = s.call("list_recordings")
+    ids = [x["id"] for x in json.loads(text_of(r))]
+    check("list: ties break by id descending",
+          ids.index("tie-b") < ids.index("tie-a") and ids[0] == "2031-01-01_000000", ids)
+    r = s.call("list_recordings", limit=2)
+    check("list: limit cuts and sets _meta.truncated on the result",
+          len(json.loads(text_of(r))) == 2 and r["result"].get("_meta", {}).get("truncated") is True
+          and r["result"]["_meta"].get("total") == 6, r)
+    r = s.call("list_recordings", limit=0)
+    check("list: limit 0 is clamped to 1", len(json.loads(text_of(r))) == 1, r)
+    s.finish()
+
+    mrec = os.path.join(root, "mrec")
+    os.mkdir(mrec)
+    for i in range(60):
+        with open(os.path.join(mrec, "m%02d.txt" % i), "w") as f:
+            f.write("needle number %d\n" % i)
+    s = Srv(mrec)
+    r = s.call("search", query="needle")
+    hits = json.loads(text_of(r))
+    check("search: 60 matches yield 50 hits", len(hits) == 50, len(hits))
+    check("search: truncated hits carry _meta.truncated with reason hits",
+          r["result"].get("_meta") == {"truncated": True, "reason": "hits"}, r["result"].get("_meta"))
+    s.finish()
+
+    # ---------- pipelining ----------
+    s = Srv(prec)
+    blob = b"".join(json.dumps({"jsonrpc": "2.0", "id": i, "method": "ping"}).encode() + b"\n" for i in range(1, 501))
+    s.send_bytes(blob)
+    got = [s.recv() for _ in range(500)]
+    check("pipeline: 500 requests give 500 in-order replies, each id once",
+          all(isinstance(g, dict) and g.get("id") == i + 1 for i, g in enumerate(got)), [g for g in got[:3]])
+    s.finish()
+
+    # ---------- concurrent mutation ----------
+    wrec = os.path.join(root, "wrec")
+    os.mkdir(wrec)
+    for i in range(10):
+        with open(os.path.join(wrec, "w%d.txt" % i), "w") as f:
+            f.write("mutation target %d\n" % i)
+    stop = threading.Event()
+
+    def writer():
+        k = 0
+        while not stop.is_set():
+            k += 1
+            n = k % 10
+            base = os.path.join(wrec, "w%d" % n)
+            try:
+                with open(base + ".txt", "w") as f:
+                    f.write("mutation target %d round %d\n" % (n, k))
+                with open(base + ".summary.md", "w") as f:
+                    f.write("summary %d\n" % k)
+                with open(base + ".txt", "w"):
+                    pass
+                os.rename(base + ".txt", base + "-moved.txt")
+                os.rename(base + "-moved.txt", base + ".txt")
+                os.remove(base + ".summary.md")
+                os.remove(base + ".txt")
+            except OSError:
+                pass
+
+    th = threading.Thread(target=writer, daemon=True)
+    th.start()
+    s = Srv(wrec)
+    bad = []
+    for i in range(150):
+        for r in (s.call("list_recordings"), s.call("search", query="mutation"),
+                  s.call("get_transcript", id="w%d" % (i % 10))):
+            if not isinstance(r, dict) or "error" in r or "result" not in r:
+                bad.append(r)
+            elif r["result"].get("isError") is not True:
+                try:
+                    json.loads(text_of(r)) if "[" in text_of(r)[:1] else None
+                except ValueError:
+                    bad.append(r)
+    stop.set()
+    th.join(5)
+    err = s.finish()
+    check("mutation: only valid results or isError, never -32603", not bad, bad[:2])
+    check("mutation: stderr is empty and exit is 0", err == "" and s.p.returncode == 0, (err[:200], s.p.returncode))
+
+    # ---------- fuzz ----------
+    rnd = random.Random(20261107)
+    s = Srv(prec)
+    for _ in range(300):
+        s.send_bytes(bytes(rnd.randrange(256) for _ in range(rnd.randrange(1, 60))) + b"\n")
+    shapes = [b'{"id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":%d}}}',
+              b'{"id":2,"method":"tools/call","params":{"name":%d}}',
+              b'{"id":%d,"method":"initialize","params":%d}',
+              b'{"id":"a","method":%d}', b'{"method":%d,"id":null}', b'[%d]', b'%d']
+    for _ in range(300):
+        shape = rnd.choice(shapes)
+        s.send_bytes((shape.replace(b"%d", str(rnd.randrange(-5, 5)).encode()) if b"%d" in shape else shape) + b"\n")
+    s.send({"jsonrpc": "2.0", "id": "end", "method": "ping"})
+    ok = True
+    sawend = False
+    lines = 0
+    while True:
+        r = s.recv(10)
+        if not isinstance(r, dict):
+            ok = False
+            break
+        lines += 1
+        if not (r.get("jsonrpc") == "2.0" and ("result" in r) != ("error" in r) and "id" in r):
+            ok = False
+            break
+        if r.get("id") == "end":
+            sawend = True
+            break
+    check("fuzz: every stdout line is a valid JSON-RPC response and the server survives", ok and sawend, (r, lines))
+    err = s.finish()
+    check("fuzz: stderr is class names only and exit is 0",
+          s.p.returncode == 0 and CANARY not in err, (s.p.returncode, err[:200]))
+
+
+if __name__ == "__main__":
+    main()

@@ -288,6 +288,24 @@ speakers meeting.m4a            # add speaker labels to meeting.txt
 speakers meeting.m4a -n 3       # exactly 3 speakers
 ```
 
+## 🔌 Use Earshot from an agent (MCP)
+
+`scripts/earshot-mcp` is a small stdio [MCP](https://modelcontextprotocol.io) server that lets an agent read your recordings. It needs only the system Python 3, starts no daemon and opens no port.
+
+```bash
+claude mcp add --scope user earshot -- /abs/path/to/earshot/scripts/earshot-mcp
+# recordings somewhere else (name first: -e takes several values and would swallow it):
+claude mcp add --scope user earshot -e WHISPER_REC_DIR=/path -- /abs/path/to/earshot/scripts/earshot-mcp
+```
+
+The default scope is project-local; `--scope user` makes it available everywhere.
+
+It exposes four read-only tools: `list_recordings`, `get_transcript`, `get_summary` and `search`.
+
+**Privacy:** it exposes what you already keep on disk to the agent you connect it to. That agent may send the text to its own provider, which is your choice and outside Earshot's "nothing leaves this Mac" promise.
+
+Tool output is untrusted text from audio, so an agent should treat it as data, not instructions. Symlinked recording files are refused. A file still being written may be read as a prefix, and a transcript may briefly be newer than its summary because the files are written separately.
+
 ## 🔬 Accuracy notes
 
 > [!TIP]
