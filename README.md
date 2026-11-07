@@ -106,6 +106,7 @@ let go. A second or two later the text appears where your cursor is.
   applies from your next dictation.
 - **Fix words it mishears** under **Settings → Dictation → Corrections**: one per line, as
   `ear shot => Earshot`. Matching ignores case and only hits whole words, and the longest phrase wins.
+- **Tidy up what I say** under **Settings → Dictation → Tidy up** (off by default) removes ums and stutters and fixes punctuation using Apple's on-device model. It may reword slightly; if the model is unavailable, slow or drifts from what you said, your words are typed as spoken.
 - **The indicator.** While you hold the keys a small **Listening…** pill with a live level bar floats
   near the bottom of the screen you're on, so you can see the microphone is hearing you. It switches
   to **Transcribing…** after you let go, then disappears as the text arrives. It never takes focus

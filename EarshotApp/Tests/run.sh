@@ -33,3 +33,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 # NoteSessionTests also uses @main and fails itself if fewer than 17 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift NoteSession.swift Tests/NoteSessionTests.swift -o "$out/note-session-tests"
 "$out/note-session-tests"
+# CleanupTests also uses @main and fails itself if fewer than 19 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift DictationCleanup.swift Tests/CleanupTests.swift -o "$out/cleanup-tests"
+"$out/cleanup-tests"

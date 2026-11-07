@@ -8,6 +8,12 @@ enum DictationPrefs {
         d.object(forKey: enabled) as? Bool ?? false
     }
 
+    static let cleanup = "dictationCleanup"
+
+    static func isCleanupEnabled(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: cleanup) as? Bool ?? false
+    }
+
     static let toggle = "dictationToggle"
 
     static func isToggle(_ d: UserDefaults = .standard) -> Bool {

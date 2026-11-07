@@ -21,6 +21,8 @@ final class DictationService: ObservableObject {
     /// Runs the transcribe script with these arguments. `nil` means success, else the error text.
     var runHelper: ([String]) async -> String? = { _ in "No transcriber is set up." }
     var log: (String) -> Void = { _ in }
+    /// Tidies a transcript with a language model; nil means "no answer", and the original is typed.
+    var tidy: (String) async -> String? = { _ in nil }
     var microphoneID: () -> String = { "" }
     /// True while a dictation is listening, transcribing or typing.
     var isBusy: Bool { session.state != .idle }
@@ -277,7 +279,20 @@ final class DictationService: ObservableObject {
                 keptClip = nil
                 retryAvailable = false
             }
-            let corrected = text.map { DictationDictionary.load().apply($0) }
+            var cleaned = text
+            if let original = text, DictationPrefs.isCleanupEnabled() {
+                let tidy = self.tidy
+                let answer = await withTaskGroup(of: String?.self) { group in
+                    group.addTask { await tidy(original) }
+                    group.addTask { try? await Task.sleep(for: .seconds(5)); return nil }
+                    let first = await group.next() ?? nil
+                    group.cancelAll()
+                    return first
+                }
+                cleaned = DictationCleanup.choose(original: original, cleaned: answer)
+                if answer == nil { log("Dictation: cleanup skipped.") }
+            }
+            let corrected = cleaned.map { DictationDictionary.load().apply($0) }
             send(.transcript(corrected, secureInput: IsSecureEventInputEnabled()))
         }
     }

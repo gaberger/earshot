@@ -257,6 +257,12 @@ final class Library: ObservableObject {
         dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
         dictation.runHelper = { await Library.run($0) }
         dictation.log = { [weak self] in self?.log($0) }
+        dictation.tidy = { text in
+            let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+            guard case .available = model.availability else { return nil }
+            let session = LanguageModelSession(model: model, instructions: DictationCleanup.instructions)
+            return try? await session.respond(to: text).content
+        }
         dictation.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
         noteRecorder.isMeetingRecording = { [weak self] in self?.recording ?? false }
         noteRecorder.isDictationBusy = { [weak self] in self?.dictation.isBusy ?? false }

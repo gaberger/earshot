@@ -90,6 +90,7 @@ struct DictationSettingsView: View {
     var onResetPermission: () -> Void = {}
     @AppStorage(DictationPrefs.enabled) private var enabled = false
     @AppStorage(DictationPrefs.toggle) private var toggle = false
+    @AppStorage(DictationPrefs.cleanup) private var cleanup = false
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
     @State private var trusted = AXIsProcessTrusted()
@@ -159,6 +160,15 @@ struct DictationSettingsView: View {
                         .pickerStyle(.segmented)
                         .labelsHidden()
                         .frame(width: 160)
+                    }
+                }
+
+                SettingsSection("Tidy up", dimmed: !enabled) {
+                    SettingsRow("Tidy up what I say",
+                                detail: "Removes ums and fixes punctuation using Apple's on-device model. Off by default; may reword slightly.") {
+                        Toggle("", isOn: $cleanup)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
                     }
                 }
 
