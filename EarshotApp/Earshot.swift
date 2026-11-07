@@ -1069,10 +1069,9 @@ struct SettingsView: View {
             }
 
             Section {
-                DictationSettingsView(onEnable: { DictationService.requestPermissions() },
-                                      onResetPermission: { DictationService.resetAccessibilityPermission() })
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                Text("Dictation has its own page: choose Dictation in the sidebar of the main window.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -1894,6 +1893,7 @@ struct ContentView: View {
     @StateObject private var monitor = ResourceMonitor()
     @State private var dropTargeted = false
     @State private var newName = ""
+    @State private var section: AppSection = .recordings
 
     private var homeItems: [HomeItem] {
         lib.items.map { r in
@@ -1912,28 +1912,72 @@ struct ContentView: View {
         }
     }
 
+    private var recordingsHome: some View {
+        var home = HomeView(items: homeItems, onOpen: { lib.selection = $0 })
+        home.rowMenu = { item in
+            AnyView(Group {
+                if let r = lib.items.first(where: { $0.id == item.id }) {
+                    Button("Rename…") { lib.renaming = r.id }
+                    Button("Show in Finder") { lib.showInFinder(r) }
+                    Button("Transcribe Again") { lib.transcribe(r.id) }
+                    Button("Find Speakers Again") { lib.findSpeakers(r.id) }.disabled(!r.hasTranscript)
+                    Button("Summarize Again") { lib.summarize(r.id) }.disabled(!r.hasTranscript)
+                    Divider()
+                    Button("Move to Trash", role: .destructive) { lib.moveToTrash(r) }
+                }
+            })
+        }
+        return home
+    }
+
     var body: some View {
         NavigationSplitView {
-            Timeline(lib: lib)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    AppIcon(size: 26)
+                    Text("Earshot").font(.headline)
+                    Spacer()
+                }
+                SidebarNav(selection: $section)
+                Spacer()
+                SidebarStatusCard(ready: !lib.recording,
+                                  detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
+            }
+            .padding(12)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
         } detail: {
             Group {
                 if lib.recording, let start = lib.startedAt {
                     RecordingNow(lib: lib, start: start)
+                } else if section == .dictation {
+                    DictationPage(onEnable: { DictationService.requestPermissions() },
+                                  onResetPermission: { DictationService.resetAccessibilityPermission() })
                 } else if let r = lib.selected {
-                    RecordingDetail(lib: lib, rec: r)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button { lib.selection = nil } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                Text("Recordings")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 20)
+                        .padding(.top, 12)
+                        RecordingDetail(lib: lib, rec: r)
+                    }
                 } else {
-                    HomeView(shortcut: HotKey.load().display,
-                             dictationOn: DictationPrefs.isEnabled(),
-                             items: homeItems,
-                             onOpen: { lib.selection = $0 })
+                    recordingsHome
                 }
             }
             .overlay(alignment: .bottom) {
-                RecordBar(recordingSince: lib.startedAt,
-                          onRecord: lib.toggleRecording,
-                          onImport: { if lib.recording { return }; lib.chooseFile() })
-                    .padding(.bottom, 16)
+                if section == .recordings {
+                    RecordBar(recordingSince: lib.startedAt,
+                              onRecord: lib.toggleRecording,
+                              onImport: { if lib.recording { return }; lib.chooseFile() })
+                        .padding(.bottom, 16)
+                }
             }
             .overlay(alignment: .bottom) {
                 if let notice = lib.notice {
@@ -1975,6 +2019,9 @@ struct ContentView: View {
             Button("Keep My Edits", role: .cancel) {}
         } message: {
             Text("You changed this summary by hand. A new summary replaces your changes, and this can't be undone.")
+        }
+        .onChange(of: lib.selection) {
+            if lib.selection != nil { section = .recordings }
         }
         .onChange(of: lib.renaming) {
             newName = lib.items.first { $0.id == lib.renaming }?.title ?? ""
@@ -2030,109 +2077,6 @@ func elapsed(from start: Date, to now: Date) -> String {
     return s >= 3600
         ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
         : String(format: "%d:%02d", s / 60, s % 60)
-}
-
-/// The sidebar: every recording, newest first, grouped by day.
-struct Timeline: View {
-    @ObservedObject var lib: Library
-
-    private var days: [(day: Date, items: [Recording])] {
-        Dictionary(grouping: lib.items) { Calendar.current.startOfDay(for: $0.date) }
-            .map { ($0.key, $0.value) }
-            .sorted { $0.day > $1.day }
-    }
-
-    var body: some View {
-        List(selection: $lib.selection) {
-            ForEach(days, id: \.day) { group in
-                Section(dayName(group.day)) {
-                    ForEach(group.items) { r in
-                        TimelineRow(lib: lib, rec: r)
-                            .tag(r.id)
-                            .contextMenu {
-                                Button("Rename…") { lib.renaming = r.id }
-                                Button("Show in Finder") { lib.showInFinder(r) }
-                                Button("Transcribe Again") { lib.transcribe(r.id) }
-                                Button("Find Speakers Again") { lib.findSpeakers(r.id) }.disabled(!r.hasTranscript)
-                                Button("Summarize Again") { lib.summarize(r.id) }.disabled(!r.hasTranscript)
-                                Divider()
-                                Button("Move to Trash", role: .destructive) { lib.moveToTrash(r) }
-                            }
-                    }
-                }
-            }
-        }
-        .onDeleteCommand { if let r = lib.selected { lib.moveToTrash(r) } }
-        // One quiet brand mark at the top of the sidebar, as many Mac apps do.
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 8) {
-                AppIcon(size: 26)
-                Text("Earshot").font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-        }
-        .overlay {
-            if lib.items.isEmpty {
-                ContentUnavailableView("No recordings yet", systemImage: "mic",
-                                       description: Text("Press Record to start."))
-            }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarStatusCard(ready: !lib.recording,
-                              detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
-                .padding(12)
-        }
-    }
-
-    private func dayName(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return "Today" }
-        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
-        return day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
-    }
-}
-
-struct TimelineRow: View {
-    @ObservedObject var lib: Library
-    let rec: Recording
-    @State private var duration: Double?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(rec.title).lineLimit(1)
-            HStack(spacing: 6) {
-                Text(rec.date.formatted(date: .omitted, time: .shortened))
-                if let duration { Text("· " + elapsed(from: .distantPast, to: Date.distantPast + duration)) }
-                Spacer()
-                status
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 3)
-        .task(id: rec.id) {
-            if let d = try? await AVURLAsset(url: rec.audio).load(.duration), d.seconds.isFinite {
-                duration = d.seconds
-            }
-        }
-    }
-
-    @ViewBuilder private var status: some View {
-        if lib.transcribing.contains(rec.id) {
-            ProgressView().controlSize(.mini).help("Transcribing")
-        } else if lib.findingSpeakers.contains(rec.id) {
-            Image(systemName: "person.2.wave.2").symbolEffect(.pulse).help("Finding speakers")
-        } else if lib.summarizing.contains(rec.id) {
-            Image(systemName: "sparkles").symbolEffect(.pulse).help("Summarizing")
-        } else if lib.errors[rec.id] != nil {
-            Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help("Something went wrong")
-        } else if rec.hasSummary {
-            Image(systemName: "sparkles").help("Transcribed and summarized")
-        } else if rec.hasTranscript {
-            Image(systemName: "text.alignleft").help("Transcribed")
-        }
-    }
 }
 
 /// Shown while the microphone is live, so it is obvious how to stop.

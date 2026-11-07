@@ -20,6 +20,7 @@ struct HomeItem: Identifiable, Equatable {
 struct HomeView: View {
     let items: [HomeItem]
     let onOpen: (String) -> Void
+    var rowMenu: ((HomeItem) -> AnyView)? = nil
 
     private enum Filter { case all, errors }
     @State private var filter: Filter = .all
@@ -171,6 +172,7 @@ struct HomeView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu { if let rowMenu { rowMenu(item) } }
     }
 
     private func dayTitle(_ day: Date) -> String {
