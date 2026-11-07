@@ -960,61 +960,6 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
     }
 }
 
-/// Records a new dictation shortcut: click, then press the combination. Esc cancels.
-struct HotKeyRecorder: View {
-    @Binding var hotKey: HotKey
-    @Binding var notice: String?
-    @State private var listening = false
-    @State private var monitor: Any?
-    @State private var resignObserver: Any?
-
-    var body: some View {
-        Button(listening ? "Press the new shortcut… (Esc to cancel)" : hotKey.display) {
-            if listening { stop() } else { start() }
-        }
-        .onDisappear { stop() }
-    }
-
-    private func start() {
-        notice = nil
-        listening = true
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            handle(event)
-            return nil
-        }
-        resignObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { _ in
-            stop()
-        }
-    }
-
-    private func handle(_ event: NSEvent) {
-        if event.keyCode == 53 {
-            stop()
-            return
-        }
-        let candidate = HotKey(keyCode: UInt32(event.keyCode),
-                               modifiers: HotKey.carbonModifiers(fromCocoa: event.modifierFlags.rawValue))
-        if !candidate.isValid {
-            notice = "Use Control or Option with a key, or a function key like F5. Shortcuts that macOS already uses can't be chosen."
-            return
-        }
-        if candidate.save() {
-            hotKey = candidate
-            notice = nil
-        }
-        stop()
-    }
-
-    private func stop() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-        monitor = nil
-        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
-        resignObserver = nil
-        listening = false
-    }
-}
-
 struct SettingsView: View {
     @AppStorage(MicRecorder.settingKey) private var microphoneID = ""
     @AppStorage(Prefs.autoStopMinutes) private var autoStopMinutes = 5
@@ -1022,14 +967,9 @@ struct SettingsView: View {
     @AppStorage(Prefs.speakerCount) private var speakerCount = 0
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
     @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
-    @AppStorage(DictationPrefs.enabled) private var dictationEnabled = false
-    @AppStorage(DictationPrefs.toggle) private var dictationToggle = false
     @State private var inputs: [AVCaptureDevice] = []
     @State private var loginStatus = SMAppService.mainApp.status
     @State private var loginNotice: String?
-    @State private var hotKey = HotKey.load()
-    @State private var hotKeyNotice: String?
-    @State private var dictionaryText = DictationDictionary.load().asText
 
     /// On means registered, whether or not macOS still wants the user to approve it in Login Items.
     private var openAtLogin: Bool { loginStatus == .enabled || loginStatus == .requiresApproval }
@@ -1109,54 +1049,9 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Dictate into any app", isOn: $dictationEnabled)
-                    .onChange(of: dictationEnabled) { _, on in
-                        if on { DictationService.requestPermissions() }
-                    }
-                Text("Press \(hotKey.display) to dictate, speak, and let go (or tap again, in tap mode). Earshot types what you said into the app you are in. "
-                     + "A small Listening… indicator shows while it hears you. "
-                     + "Needs Microphone and Accessibility access. Nothing is typed into password fields, and the audio is not kept, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                LabeledContent("Shortcut") {
-                    HStack {
-                        HotKeyRecorder(hotKey: $hotKey, notice: $hotKeyNotice)
-                        if hotKey != .default {
-                            Button("Reset") {
-                                HotKey.reset()
-                                hotKey = HotKey.load()
-                                hotKeyNotice = nil
-                            }
-                        }
-                    }
-                }
-                Picker("Mode", selection: $dictationToggle) {
-                    Text("Hold to talk").tag(false)
-                    Text("Tap to start, tap to stop").tag(true)
-                }
-                if let hotKeyNotice {
-                    Label(hotKeyNotice, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Corrections")
-                    Text("One per line, as: what Earshot hears => how to write it. Example: ear shot => Earshot")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextEditor(text: $dictionaryText)
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(height: 90)
-                        .onChange(of: dictionaryText) { _, text in
-                            DictationDictionary(parsing: text).save()
-                        }
-                }
-                if dictationEnabled && !AXIsProcessTrusted() {
-                    Label("Earshot is not allowed to type for you yet. Turn it on in System Settings → Privacy & Security → Accessibility.",
-                          systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-            } header: {
-                Text("Dictation")
+                DictationSettingsView(onEnable: { DictationService.requestPermissions() })
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
             }
 
             Section {

@@ -1,5 +1,20 @@
 import Foundation
 
+/// Preference for push-to-talk dictation. Off until the user turns it on in Settings.
+enum DictationPrefs {
+    static let enabled = "dictationEnabled"
+
+    static func isEnabled(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: enabled) as? Bool ?? false
+    }
+
+    static let toggle = "dictationToggle"
+
+    static func isToggle(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: toggle) as? Bool ?? false
+    }
+}
+
 /// Decides what push-to-talk dictation does next, from key events, transcription results and the
 /// clock, and says what the app should do about it.
 ///

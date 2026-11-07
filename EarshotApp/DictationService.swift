@@ -5,21 +5,6 @@ import Combine
 import Foundation
 import UserNotifications
 
-/// Preference for push-to-talk dictation. Off until the user turns it on in Settings.
-enum DictationPrefs {
-    static let enabled = "dictationEnabled"
-
-    static func isEnabled(_ d: UserDefaults = .standard) -> Bool {
-        d.object(forKey: enabled) as? Bool ?? false
-    }
-
-    static let toggle = "dictationToggle"
-
-    static func isToggle(_ d: UserDefaults = .standard) -> Bool {
-        d.object(forKey: toggle) as? Bool ?? false
-    }
-}
-
 /// The AppKit side of push-to-talk dictation: a global hold-to-talk hotkey (the saved
 /// `HotKey`, Control+Option+Space by default), a short microphone capture while it is held, whisper through the owner's helper, and a paste
 /// into whatever app has focus. `DictationSession` decides; this class only does what it says.
