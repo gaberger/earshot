@@ -14,7 +14,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "earshot-speak")
-FLOOR = 40
+FLOOR = 56
 checks = 0
 failures = 0
 
@@ -30,7 +30,8 @@ def check(name, ok, detail=""):
 
 
 def run(args, stdin="", env=None, timeout=15):
-    e = dict(os.environ)
+    # The test may itself run inside a Claude Code session; its id must not leak into the script.
+    e = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_SESSION_ID"}
     e.update(env or {})
     return subprocess.run([sys.executable, "-I", SCRIPT] + args, input=stdin, capture_output=True,
                           text=True, env=e, timeout=timeout)
@@ -107,21 +108,79 @@ def main():
                 os.remove(out)
             e = dict(env)
             e.update(extra or {})
+            if isinstance(payload, dict):
+                # Hooks always carry a session id. Default to the main test session; pass
+                # "session_id": None to send a payload with no id at all.
+                payload = dict(payload)
+                sid = payload.pop("session_id", "sess-main")
+                if sid is not None:
+                    payload["session_id"] = sid
             return run([], stdin=payload if isinstance(payload, str) else json.dumps(payload), env=e)
+
+        main_env = dict(env, CLAUDE_CODE_SESSION_ID="sess-main")
+        other_env = dict(env, CLAUDE_CODE_SESSION_ID="sess-other")
+        flag = os.path.join(state, "voice-on")
 
         r = hook({"last_assistant_message": "It works."})
         time.sleep(0.6)
         check("without the flag file nothing is spoken", not os.path.exists(out))
         check("without the flag file the hook exits 0 and prints nothing", r.returncode == 0 and r.stdout == "", repr(r.stdout))
 
-        on = run(["on"], env=env)
-        check("`on` creates the flag file", on.returncode == 0 and os.path.exists(os.path.join(state, "voice-on")))
-        check("`status` says on", run(["status"], env=env).stdout.strip() == "on")
+        on = run(["on"], env=main_env)
+        check("`on` creates the flag file", on.returncode == 0 and os.path.exists(flag))
+        st = run(["status"], env=main_env).stdout.split("\n")
+        check("`status` says on", st[0].strip() == "on", repr(st))
+        check("`status` says it is bound to this session", "this session" in " ".join(st[1:]), repr(st))
 
         r = hook({"last_assistant_message": "It works. See `x`."})
         check("with the flag, the reply is spoken", wait_for(out) and open(out).read().strip() == "It works. See x.",
               open(out).read() if os.path.exists(out) else "no output")
         check("the hook exits 0 and prints nothing when it speaks", r.returncode == 0 and r.stdout == "", repr(r.stdout))
+
+        # MARK: only the session the voice is bound to speaks (the voice is bound to sess-main)
+        hook({"last_assistant_message": "Reply from a different window.", "session_id": "sess-other"})
+        time.sleep(0.6)
+        check("another session's reply is not spoken", not os.path.exists(out))
+        hook({"last_assistant_message": "A reply with no session id.", "session_id": None})
+        time.sleep(0.6)
+        check("a reply with no session id is not spoken while bound", not os.path.exists(out))
+        st = run(["status"], env=other_env).stdout.split("\n")
+        check("`status` from another session says the voice is bound elsewhere",
+              st[0].strip() == "on" and "another session" in " ".join(st[1:]), repr(st))
+        refused = run(["on"], env={"EARSHOT_STATE_DIR": state})
+        check("`on` with no session id and no --all refuses", refused.returncode != 0 and refused.stderr.strip() != "",
+              repr((refused.returncode, refused.stderr[:120])))
+        check("a refused `on` leaves the binding alone", "sess-main" in open(flag).read(), open(flag).read())
+        run(["on"], env=other_env)
+        hook({"last_assistant_message": "Still the old window."})
+        time.sleep(0.6)
+        check("running `on` elsewhere moves the voice: the old session goes quiet", not os.path.exists(out))
+        hook({"last_assistant_message": "Now the new window.", "session_id": "sess-other"})
+        check("running `on` elsewhere moves the voice: the new session speaks",
+              wait_for(out) and open(out).read().strip() == "Now the new window.",
+              open(out).read() if os.path.exists(out) else "no output")
+        allon = run(["on", "--all"], env={"EARSHOT_STATE_DIR": state})
+        check("`on --all` works without a session id", allon.returncode == 0 and os.path.exists(flag), repr(allon.stderr[:120]))
+        hook({"last_assistant_message": "Everyone one.", "session_id": "sess-main"})
+        check("with --all the first session speaks", wait_for(out) and open(out).read().strip() == "Everyone one.")
+        hook({"last_assistant_message": "Everyone two.", "session_id": "sess-zzz"})
+        check("with --all any other session speaks too", wait_for(out) and open(out).read().strip() == "Everyone two.")
+        st = run(["status"], env=env).stdout.split("\n")
+        check("`status` says all sessions", st[0].strip() == "on" and "all sessions" in " ".join(st[1:]), repr(st))
+        open(flag, "w").close()
+        hook({"last_assistant_message": "From an empty flag."})
+        time.sleep(0.6)
+        check("an empty flag file counts as off", not os.path.exists(out))
+        check("`status` says off for an empty flag file", run(["status"], env=env).stdout.split()[0] == "off")
+        with open(flag, "w") as f:
+            f.write("{not json")
+        hook({"last_assistant_message": "From a broken flag."})
+        time.sleep(0.6)
+        check("an unreadable flag file counts as off", not os.path.exists(out))
+        run(["on"], env=main_env)
+        hook({"last_assistant_message": "Back in the main window."})
+        check("binding the voice back to the first session works",
+              wait_for(out) and open(out).read().strip() == "Back in the main window.")
 
         # transcript input
         tr = os.path.join(root, "t.jsonl")

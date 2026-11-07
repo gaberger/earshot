@@ -146,10 +146,25 @@ def speak(text):
         f.write(str(p.pid))
 
 
+def read_flag(path):
+    """The parsed flag dict, or None when the flag is missing, empty, unreadable or not an object."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.loads(f.read())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def hook():
-    if not os.path.exists(os.path.join(state_dir(), "voice-on")):
+    flag = read_flag(os.path.join(state_dir(), "voice-on"))
+    if flag is None:
         return
     payload = json.loads(sys.stdin.read())
+    if flag.get("all") is not True:
+        bound = flag.get("session_id")
+        if not isinstance(bound, str) or not bound or payload.get("session_id") != bound:
+            return
     msg = payload.get("last_assistant_message")
     if isinstance(msg, str) and msg.strip():
         raw = msg
@@ -174,14 +189,35 @@ def main():
     if cmd == "plain":
         sys.stdout.write(speakable(sys.stdin.read()) + "\n")
     elif cmd == "on":
-        open(flag, "w").close()
+        sid = os.environ.get("CLAUDE_CODE_SESSION_ID")
+        if len(sys.argv) > 2 and sys.argv[2] == "--all":
+            data = {"all": True}
+        elif sid:
+            data = {"session_id": sid}
+        else:
+            sys.stderr.write("earshot-speak: no Claude Code session id; run `on` from inside a "
+                             "Claude Code session, or use `on --all`.\n")
+            return 2
+        with open(flag, "w", encoding="utf-8") as f:
+            json.dump(data, f)
     elif cmd == "off":
         try:
             os.remove(flag)
         except OSError:
             pass
     elif cmd == "status":
-        print("on" if os.path.exists(flag) else "off")
+        data = read_flag(flag)
+        if data is None:
+            print("off")
+        else:
+            print("on")
+            sid = os.environ.get("CLAUDE_CODE_SESSION_ID")
+            if data.get("all") is True:
+                print("all sessions")
+            elif sid and data.get("session_id") == sid:
+                print("bound to this session")
+            else:
+                print("bound to another session")
     elif cmd == "stop":
         stop_speech()
     else:

@@ -317,13 +317,14 @@ Tool output is untrusted text from audio, so an agent should treat it as data, n
 This is for Claude Code. `scripts/earshot-speak` reads Claude's reply aloud when a turn ends, using the macOS `say` command locally. Nothing leaves this Mac.
 
 ```bash
-scripts/earshot-speak on      # start speaking replies
-scripts/earshot-speak off     # stop speaking replies
-scripts/earshot-speak status  # prints "on" or "off"
-scripts/earshot-speak stop    # cut off the reply being spoken now
+scripts/earshot-speak on        # speak replies for the session you run this from
+scripts/earshot-speak on --all  # speak replies for every session
+scripts/earshot-speak off       # stop speaking replies
+scripts/earshot-speak status    # "on" or "off", then which session it is bound to
+scripts/earshot-speak stop      # cut off the reply being spoken now
 ```
 
-It is off until you run `on`. Add the Stop hook to your Claude Code settings:
+It is off until you run `on`. `on` binds the voice to the session you run it from, so you must run it from inside the Claude Code session you are talking to, for example by typing `!scripts/earshot-speak on` (the exclamation-mark prefix) in the prompt. Outside a session it refuses and tells you so. `on --all` speaks for every session. Other windows stay quiet; running `on` in another session moves the voice there. Add the Stop hook to your Claude Code settings:
 
 ```json
 {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/ABSOLUTE/PATH/TO/earshot/scripts/earshot-speak"}]}]}}
