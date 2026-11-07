@@ -11,7 +11,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FLOOR = 55
+FLOOR = 62
 checks = 0
 failures = 0
 
@@ -78,7 +78,7 @@ check("at least 5 screenshots under assets/screenshots/", len(set(shots)) >= 5, 
 small = [s for s in set(shots) if os.path.exists(os.path.join(ROOT, s)) and png_width(os.path.join(ROOT, s)) < 1000]
 check("every screenshot is at least 1000 px wide", not small, small)
 check("the README says the screenshots show sample data", "sample data" in low)
-check("the README uses the logo file", any(s == "assets/earshot-logo.svg" for s, _ in local))
+check("the README uses the logo file assets/earshot-logo.png", any(s == "assets/earshot-logo.png" for s, _ in local))
 
 # MARK: links
 links = re.findall(r"\]\(([^)\s#][^)\s]*)\)", text) + re.findall(r'href="([^"#][^"]*)"', text)
@@ -93,11 +93,35 @@ files = [os.path.join(ROOT, "assets", "earshot-logo.svg")] + \
 leftover = [(os.path.basename(f), c) for f in files if os.path.exists(f)
             for c in old if c in open(f, encoding="utf-8").read().lower()]
 check("no old indigo or violet left in the logo or the badges", not leftover, leftover)
-logo = open(os.path.join(ROOT, "assets", "earshot-logo.svg"), encoding="utf-8").read().lower() \
-    if os.path.exists(os.path.join(ROOT, "assets", "earshot-logo.svg")) else ""
-check("the logo uses flame orange F97316", "f97316" in logo)
-check("the logo no longer says it shows sound waves reaching an ear in the alt text",
-      "sound waves reaching an ear" not in low or "charcoal" in low or "orange ear" in low)
+# The logo must be the real app icon as macOS draws it (a PNG), not a redraw. A redraw once passed every
+# check and still did not match the icon in the owner's Dock.
+logo_path = os.path.join(ROOT, "assets", "earshot-logo.png")
+check("the logo is a PNG file at least 400 px wide", os.path.exists(logo_path) and png_width(logo_path) >= 400)
+check("the old flat logo file is gone, so nothing can show it", not os.path.exists(os.path.join(ROOT, "assets", "earshot-logo.svg")))
+check("the logo alt text names the charcoal tile and orange ear", "charcoal" in low and "orange ear" in low)
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+check("Pillow is installed, so the logo pixels can be checked", Image is not None)
+if Image is not None and os.path.exists(logo_path):
+    import colorsys
+    im = Image.open(logo_path).convert("RGBA")
+    w, h = im.size
+    px = im.load()
+    check("the logo is square", w == h, (w, h))
+    check("the logo has transparent rounded corners", px[0, 0][3] == 0 and px[w - 1, 0][3] == 0 and px[0, h - 1][3] == 0 and px[w - 1, h - 1][3] == 0)
+    samples = [px[x, y][:3] for y in range(0, h, 4) for x in range(0, w, 4) if px[x, y][3] > 200]
+    total = ((w + 3) // 4) * ((h + 3) // 4)
+    check("the tile fills the picture (at least 75 percent opaque, so no wasted margin)", len(samples) / total >= 0.75, len(samples) / total)
+    lum = sorted(0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in samples)
+    check("the tile is dark (median luminance under 70 of 255)", bool(lum) and lum[len(lum) // 2] < 70, lum[len(lum) // 2] if lum else None)
+    orange = 0
+    for r, g, b in samples:
+        hh, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        if 14 <= hh * 360 <= 40 and s >= 0.5 and v >= 0.4:
+            orange += 1
+    check("the orange ear and waves are visible (at least 600 sampled orange pixels)", orange >= 600, orange)
 
 # MARK: features are documented
 for phrase in ["Tap to start, tap to stop", "Fix words it mishears", "Tidy up what I say", "Highlight the window",
