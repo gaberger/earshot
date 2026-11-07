@@ -12,6 +12,12 @@ enum DictationPrefs {
     static func isEnabled(_ d: UserDefaults = .standard) -> Bool {
         d.object(forKey: enabled) as? Bool ?? false
     }
+
+    static let toggle = "dictationToggle"
+
+    static func isToggle(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: toggle) as? Bool ?? false
+    }
 }
 
 /// The AppKit side of push-to-talk dictation: a global hold-to-talk hotkey (the saved
@@ -113,12 +119,17 @@ final class DictationService: ObservableObject {
         registered = nil
         rejectedKey = nil
         hud.hide()
-        // Turning it off mid-hold must not leave the microphone open.
-        send(.keyUp(at: ProcessInfo.processInfo.systemUptime))
+        // Turning it off mid-capture must not leave the microphone open. A tick far in the future
+        // stops a capture in either mode; key up is ignored in tap-to-toggle mode.
+        send(.tick(at: ProcessInfo.processInfo.systemUptime + 3600))
     }
 
     private func hotKeyChanged(pressed: Bool) {
         let now = ProcessInfo.processInfo.systemUptime
+        // A changed preference applies at the next dictation, never mid-capture.
+        if pressed, session.state == .idle {
+            session = DictationSession(DictationSession.Config(toggle: DictationPrefs.isToggle()))
+        }
         send(pressed ? .keyDown(at: now, meetingRecording: isMeetingRecording()) : .keyUp(at: now))
     }
 
