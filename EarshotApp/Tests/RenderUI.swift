@@ -134,6 +134,35 @@ import AppKit
                 .overlay(alignment: .bottom) { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
                 .frame(width: 380, height: 640).background(Color(nsColor: .windowBackgroundColor)))
         }),
+        ("notes", {
+            let now = Date()
+            let items: [NoteItem] = [
+                .init(id: "1", date: now, text: "I'll send you the mockups tomorrow morning. Thanks for the feedback, shall we meet on Thursday?", app: "Mail", seconds: 6),
+                .init(id: "2", date: now.addingTimeInterval(-1500), text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", app: "Notes", seconds: 9),
+                .init(id: "3", date: now.addingTimeInterval(-7200), text: "Add a search field and a button to clear the input in the history view.", app: "Claude Code", seconds: 5),
+                .init(id: "4", date: now.addingTimeInterval(-86400), text: "An idea for this weekend: turn the garage into a workshop, start with the shelving and the workbench.", app: "Notes", seconds: 12),
+                .init(id: "5", date: now.addingTimeInterval(-86400 - 3600), text: "Short one.", app: nil, seconds: nil),
+            ]
+            return AnyView(NotesView(items: items, keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+                .frame(width: 760, height: 640).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("notes-empty", {
+            AnyView(NotesView(items: [], keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+                .frame(width: 760, height: 360).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("notes-off", {
+            AnyView(NotesView(items: [], keepLog: false, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+                .frame(width: 760, height: 360).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("notes-narrow", {
+            let now = Date()
+            let items: [NoteItem] = [
+                .init(id: "1", date: now, text: "I'll send you the mockups tomorrow morning. Thanks for the feedback, shall we meet on Thursday?", app: "Mail", seconds: 6),
+                .init(id: "2", date: now.addingTimeInterval(-9 * 3600), text: "Remind me to check the failing build.", app: "Visual Studio Code", seconds: 9),
+            ]
+            return AnyView(NotesView(items: items, keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+                .frame(width: 380, height: 520).background(Color(nsColor: .windowBackgroundColor)))
+        }),
     ]
 }
 
