@@ -38,6 +38,9 @@ struct EarshotApp: App {
                 }
             }
             CommandGroup(replacing: .help) { HelpMenuItem() }
+            CommandGroup(after: .newItem) {
+                RecordCommands(lib: library)
+            }
         }
 
         Window("How Earshot Works", id: HelpView.windowID) {
@@ -56,6 +59,19 @@ struct EarshotApp: App {
             MenuBarLabel(lib: library)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// File-menu Record and Import items; observes the library so the title follows the recording state.
+struct RecordCommands: View {
+    @ObservedObject var lib: Library
+
+    var body: some View {
+        Button(lib.recording ? "Stop Recording" : "Record") { lib.toggleRecording() }
+            .keyboardShortcut("r", modifiers: .command)
+        Button("Import…") { lib.chooseFile() }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(lib.recording)
     }
 }
 
@@ -1874,6 +1890,23 @@ struct ContentView: View {
     @State private var dropTargeted = false
     @State private var newName = ""
 
+    private var homeItems: [HomeItem] {
+        lib.items.map { r in
+            let parts = [r.hasTranscript ? "transcribed" : nil, r.hasSummary ? "summarized" : nil].compactMap { $0 }
+            let state: HomeItem.State
+            if lib.transcribing.contains(r.id) {
+                state = .working
+            } else if let message = lib.errors[r.id] {
+                state = .failed(message)
+            } else {
+                state = .done
+            }
+            return HomeItem(id: r.id, date: r.date, title: r.title,
+                            detail: parts.isEmpty ? "Not transcribed yet" : parts.joined(separator: " · "),
+                            state: state)
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             Timeline(lib: lib)
@@ -1885,15 +1918,17 @@ struct ContentView: View {
                 } else if let r = lib.selected {
                     RecordingDetail(lib: lib, rec: r)
                 } else {
-                    ContentUnavailableView {
-                        VStack(spacing: 10) {
-                            AppIcon(size: 96)
-                            Text("Earshot")
-                        }
-                    } description: {
-                        Text("Press Record, or drop an audio or video file here.\nEverything stays on this Mac.")
-                    }
+                    HomeView(shortcut: HotKey.load().display,
+                             dictationOn: DictationPrefs.isEnabled(),
+                             items: homeItems,
+                             onOpen: { lib.selection = $0 })
                 }
+            }
+            .overlay(alignment: .bottom) {
+                RecordBar(recordingSince: lib.startedAt,
+                          onRecord: lib.toggleRecording,
+                          onImport: { if lib.recording { return }; lib.chooseFile() })
+                    .padding(.bottom, 16)
             }
             .overlay(alignment: .bottom) {
                 if let notice = lib.notice {
@@ -1901,6 +1936,7 @@ struct ContentView: View {
                         .padding(10)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                         .padding()
+                        .padding(.bottom, 90)
                         .onTapGesture { lib.notice = nil }
                 }
             }
@@ -1969,35 +2005,8 @@ struct HeaderControls: ToolbarContent {
             .help("Choose which microphone to record from (⌘,).")
         }
 
-        ToolbarItem(placement: .navigation) {
-            Button(action: lib.toggleRecording) {
-                if let start = lib.startedAt {
-                    // Elapsed time on the button makes it obvious the mic is still live.
-                    TimelineView(.periodic(from: start, by: 1)) { ctx in
-                        Label("Stop  " + elapsed(from: start, to: ctx.date), systemImage: "stop.circle.fill")
-                            .monospacedDigit()
-                    }
-                } else {
-                    Label("Record", systemImage: "mic.circle.fill")
-                }
-            }
-            .labelStyle(.titleAndIcon)
-            .buttonStyle(.borderedProminent)
-            .tint(lib.recording ? .red : .accentColor)
-            .keyboardShortcut("r", modifiers: .command)
-            .help(lib.recording ? "Stop recording and transcribe (⌘R)" : "Record from the microphone (⌘R)")
-        }
-
         // Icons plus words, so nobody has to guess what a symbol means.
         ToolbarItemGroup(placement: .primaryAction) {
-            Button(action: lib.chooseFile) {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            .labelStyle(.titleAndIcon)
-            .keyboardShortcut("o", modifiers: .command)
-            .disabled(lib.recording)
-            .help("Import an audio or video file and transcribe it (⌘O). You can also drag files into the window.")
-
             Toggle(isOn: $lib.translate) {
                 Label(lib.translate ? "Translate: On" : "Translate: Off", systemImage: "globe")
             }
@@ -2090,6 +2099,11 @@ struct Timeline: View {
                 ContentUnavailableView("No recordings yet", systemImage: "mic",
                                        description: Text("Press Record to start."))
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SidebarStatusCard(ready: !lib.recording,
+                              detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
+                .padding(12)
         }
     }
 
@@ -2241,6 +2255,7 @@ struct RecordingDetail: View {
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
         }
         .padding(20)
+        .padding(.bottom, 90)
     }
 
     @ViewBuilder private var transcriptTab: some View {
