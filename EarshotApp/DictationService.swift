@@ -152,9 +152,7 @@ final class DictationService: ObservableObject {
         if pressed, session.state == .idle {
             session = DictationSession(DictationSession.Config(toggle: DictationPrefs.isToggle()))
             highlightFrame = DictationPrefs.isHighlightEnabled() ? captureTargetWindow() : nil
-            let target = currentSnapshot()
-            let ownPID = ProcessInfo.processInfo.processIdentifier
-            pasteTarget = (target?.pid == ownPID) ? nil : target
+            pasteTarget = currentSnapshot()
         }
         send(pressed ? .keyDown(at: now, meetingRecording: isMeetingRecording()) : .keyUp(at: now))
     }
@@ -252,6 +250,7 @@ final class DictationService: ObservableObject {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let pid = app.processIdentifier
         let element = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(element, 0.25)
         func copy(_ attribute: String, of source: AXUIElement) -> CFTypeRef? {
             var value: CFTypeRef?
             return AXUIElementCopyAttributeValue(source, attribute as CFString, &value) == .success ? value : nil
@@ -434,7 +433,12 @@ final class DictationService: ObservableObject {
         if session.state != .transcribing { return }
         // Give focus back to the app the user was typing in, so the paste lands there.
         NSApp.deactivate()
-        transcribe(clip)
+        Task { @MainActor in
+            // Let the previous app become frontmost again before reading the target window.
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            pasteTarget = currentSnapshot()
+            transcribe(clip)
+        }
     }
 
     /// Deletes the kept clip, if any, and clears its state.
@@ -506,9 +510,14 @@ final class DictationService: ObservableObject {
 
         if DictationSubmit.shouldSendReturn(enabled: DictationPrefs.isSendReturnEnabled(), text: text,
                                             pasted: true, secureInput: IsSecureEventInputEnabled()) {
+            let guardTarget = pasteTarget
             Task { @MainActor in
                 // Let the paste land first; this is well inside the 0.5 s clipboard restore below.
                 try? await Task.sleep(nanoseconds: 200_000_000)
+                if Self.pasteDecision(target: guardTarget, current: currentSnapshot()) == .hold {
+                    log("Dictation: Return not sent, the window changed")
+                    return
+                }
                 for down in [true, false] {
                     let key = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: down)  // Return
                     key?.post(tap: .cgAnnotatedSessionEventTap)
