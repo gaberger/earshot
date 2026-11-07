@@ -42,3 +42,37 @@ Gate: `bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh`, with ne
 
 - ADR-2611061900-dictate-into-any-app
 - ADR-2611062130-restyle-the-whole-app
+
+## Amendment 2026-11-06: Notes is the in-app recorder
+
+The owner: "Notes has to have a record button so it differentiates from [dictation into other apps]. We're
+going to be an in-app transcriber." So there are three areas, and the difference is where the words go:
+
+| Area | You start it with | The words go to |
+|---|---|---|
+| Recordings | Record (meetings, calls) | a recording: transcript, speakers, summary |
+| **Notes** | **a Record button on the Notes page** | **a note in Earshot** (nothing is typed anywhere) |
+| Dictation | a hotkey, in any app | the app in front (and, if the log is on, a copy in Notes) |
+
+1. The Notes page gets a Record button. Press it, speak, press Stop: the audio is transcribed on this Mac,
+   corrected with the user's dictionary, saved as a note with the app "Earshot", and the audio is deleted.
+2. Rules, as pure logic with tests (`NoteSession`): a note will not start during a meeting recording or
+   while a dictation is in progress; under one second is thrown away; it stops by itself after ten
+   minutes; an empty or failed transcript saves nothing and says so.
+3. **Superseded by the next amendment:** dictation no longer writes to Notes.
+
+## Amendment 2026-11-06 (later): three functions, fully separate
+
+The owner: "need to separate the two functions, there are three functions: recordings, personal notes and
+dictation." Dictation had been writing a copy of what it typed into Notes, and the Dictation page carried the
+log switch. That mixed two functions. Decision:
+
+1. **Recordings** (meetings): unchanged.
+2. **Notes**: only what the user records on the Notes page with its Record button. Stored as text on this
+   Mac (`~/Library/Application Support/Earshot/notes.json`); the audio is deleted at once.
+3. **Dictation**: types into the app in front and **keeps nothing**, as in ADR-2611061900. It no longer
+   writes to Notes. The `DictationPrefs.keepLog` switch, the "Notes log" section of the Dictation page and
+   the dictation-to-notes hook are removed.
+4. The three areas share no data and no settings page. The shared dictionary (corrections) applies to both
+   Notes and Dictation transcripts because it is about the user's vocabulary, not about either function.
+5. The privacy text returns to: dictation keeps nothing; Notes keeps the text of notes you record.

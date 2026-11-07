@@ -137,30 +137,39 @@ import AppKit
         ("notes", {
             let now = Date()
             let items: [NoteItem] = [
-                .init(id: "1", date: now, text: "I'll send you the mockups tomorrow morning. Thanks for the feedback, shall we meet on Thursday?", app: "Mail", seconds: 6),
-                .init(id: "2", date: now.addingTimeInterval(-1500), text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", app: "Notes", seconds: 9),
-                .init(id: "3", date: now.addingTimeInterval(-7200), text: "Add a search field and a button to clear the input in the history view.", app: "Claude Code", seconds: 5),
-                .init(id: "4", date: now.addingTimeInterval(-86400), text: "An idea for this weekend: turn the garage into a workshop, start with the shelving and the workbench.", app: "Notes", seconds: 12),
-                .init(id: "5", date: now.addingTimeInterval(-86400 - 3600), text: "Short one.", app: nil, seconds: nil),
+                .init(id: "1", date: now, text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", seconds: 9),
+                .init(id: "2", date: now.addingTimeInterval(-5400), text: "Idea for the onboarding screen: show the shortcut first, then the permission, and only then the settings.", seconds: 14),
+                .init(id: "3", date: now.addingTimeInterval(-86400), text: "An idea for this weekend: turn the garage into a workshop, start with the shelving and the workbench.", seconds: 12),
+                .init(id: "4", date: now.addingTimeInterval(-86400 - 3600), text: "Short one.", seconds: 2),
             ]
-            return AnyView(NotesView(items: items, keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+            return AnyView(NotesView(items: items, recordingSince: nil, transcribing: false, level: { -30 },
+                                     onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 760, height: 640).background(Color(nsColor: .windowBackgroundColor)))
         }),
-        ("notes-empty", {
-            AnyView(NotesView(items: [], keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+        ("notes-recording", {
+            let now = Date()
+            let items: [NoteItem] = [.init(id: "1", date: now.addingTimeInterval(-5400), text: "Idea for the onboarding screen: show the shortcut first.", seconds: 14)]
+            return AnyView(NotesView(items: items, recordingSince: now.addingTimeInterval(-37), transcribing: false, level: { -18 },
+                                     onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+                .frame(width: 760, height: 520).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("notes-transcribing", {
+            AnyView(NotesView(items: [], recordingSince: nil, transcribing: true, level: { -60 },
+                              onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 760, height: 360).background(Color(nsColor: .windowBackgroundColor)))
         }),
-        ("notes-off", {
-            AnyView(NotesView(items: [], keepLog: false, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+        ("notes-empty", {
+            AnyView(NotesView(items: [], recordingSince: nil, transcribing: false, level: { -60 },
+                              onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 760, height: 360).background(Color(nsColor: .windowBackgroundColor)))
         }),
         ("notes-narrow", {
             let now = Date()
             let items: [NoteItem] = [
-                .init(id: "1", date: now, text: "I'll send you the mockups tomorrow morning. Thanks for the feedback, shall we meet on Thursday?", app: "Mail", seconds: 6),
-                .init(id: "2", date: now.addingTimeInterval(-9 * 3600), text: "Remind me to check the failing build.", app: "Visual Studio Code", seconds: 9),
+                .init(id: "1", date: now, text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", seconds: 9),
             ]
-            return AnyView(NotesView(items: items, keepLog: true, shortcut: "⌃⌥Space", onCopy: { _ in }, onDelete: { _ in }, onClear: {})
+            return AnyView(NotesView(items: items, recordingSince: now.addingTimeInterval(-5), transcribing: false, level: { -25 },
+                                     onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 380, height: 520).background(Color(nsColor: .windowBackgroundColor)))
         }),
     ]

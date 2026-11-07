@@ -103,8 +103,8 @@
       ],
       "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
       "last_run": {
-        "at": "2026-11-07T03:20:03.219433+00:00",
-        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationLog.swift NotesStore.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift NotesView.swift RecordingViews.swift AppNav.swift ChromeViews.swift SearchIndex.swift DictationSettingsView.swift",
+        "at": "2026-11-07T03:24:46.335454+00:00",
+        "gate": "bash EarshotApp/Tests/run.sh",
         "stage": "build"
       },
       "pid": 39595,
@@ -171,9 +171,21 @@
           "done_at": "2026-11-07T03:22:46.170140+00:00",
           "status": "done",
           "title": "Notes log: sidebar area, search, README"
+        },
+        {
+          "status": "todo",
+          "title": "Notes in the ⌘K search (SearchIndex note hits, tests first)"
+        },
+        {
+          "status": "todo",
+          "title": "Dictate a note inside Earshot (saved, not typed anywhere)"
+        },
+        {
+          "status": "todo",
+          "title": "Notes: in-app Record button (NoteSession tests, Notes page recording UI, recorder service)"
         }
       ],
-      "updated": "2026-11-07T03:22:46.170284+00:00"
+      "updated": "2026-11-07T03:24:46.335463+00:00"
     },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
