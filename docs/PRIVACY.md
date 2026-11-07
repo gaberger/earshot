@@ -30,3 +30,5 @@ and results, never what was said.
 Dictation text is typed into the app in front. The clipboard exception is described above. Notes keep only the text, in `~/Library/Application Support/Earshot/notes.json`, and the audio is deleted at once.
 
 See [Agents](AGENTS.md) for what a connected agent can read, and the [user guide](GUIDE.md) for how dictation behaves.
+
+To report a security problem, follow the [security policy](../SECURITY.md).
