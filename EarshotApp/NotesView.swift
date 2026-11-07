@@ -71,20 +71,29 @@ struct NotesView: View {
     }
 
     private var titleText: some View {
-        Text("Notes").font(.largeTitle.bold()).lineLimit(1)
+        Text("Notes").font(.largeTitle.bold()).lineLimit(1).minimumScaleFactor(0.5)
     }
 
-    private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline) {
-                titleText
-                Spacer(minLength: 12)
-                recordButton
-            }
-            .frame(minWidth: 460 - 56)
-            VStack(alignment: .leading, spacing: 12) {
-                titleText
-                recordButton
+    private var subtitle: String {
+        if recordingSince != nil { return "Recording… press Stop when you are done." }
+        if transcribing { return "Transcribing on this Mac…" }
+        return "Your own voice notes. Press Record, speak, and the text is saved here. Nothing is typed into other apps."
+    }
+
+    @ViewBuilder private var header: some View {
+        if busy {
+            titleText.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    titleText.frame(minWidth: 120, alignment: .leading)
+                    Spacer(minLength: 12)
+                    recordButton
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    titleText
+                    recordButton
+                }
             }
         }
     }
@@ -94,7 +103,7 @@ struct NotesView: View {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 6) {
                     header
-                    Text("Your own voice notes. Press Record, speak, and the text is saved here. Nothing is typed into other apps.")
+                    Text(subtitle)
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
