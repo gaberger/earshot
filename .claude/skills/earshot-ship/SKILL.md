@@ -29,3 +29,15 @@ description: The gate-first way to build, test and commit a change in Earshot wh
 - `hexa analyze .` cannot grade Swift ("no source files"); do not claim a grade.
 - `hexa do run` restores everything when evidence fails; fix the evidence command, not the code.
 - The gate list in `EarshotApp/Tests/run.sh` is appended to by every session; add your line at the end.
+
+## Running the reviewer agents (`.claude/agents/`)
+
+- The harness hook blocks a custom agent unless it runs with `isolation: "worktree"`, **but a worktree is a
+  checkout of the default branch (release 1.0.4), not of the branch you are on**: a code reviewer there finds
+  none of the new files and reports "cannot review". Only the design reviewer, which reads PNGs in `/tmp`,
+  works that way.
+- For code and privacy reviews use the read-only `Explore` agent and tell it to read
+  `.claude/agents/<name>.md` first and to work only in the live tree. Check the first lines of the
+  report for "file not found" before you trust it.
+- A review is a list of claims, not facts. Read the lines it cites before fixing (two of this session's
+  claims were right and were found that way; verify all of them).

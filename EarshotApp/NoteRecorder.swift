@@ -34,6 +34,7 @@ final class NoteRecorder: ObservableObject {
     private var ticker: Timer?
     private var captureStart: TimeInterval?
     private var recordedSeconds: Double?
+    private var watchdog: Task<Void, Never>?
 
     // MARK: Controls
 
@@ -69,6 +70,18 @@ final class NoteRecorder: ObservableObject {
         if !recording, recordingSince != nil { recordingSince = nil }
         let busy = session.state == .transcribing
         if transcribing != busy { transcribing = busy }
+        if busy, watchdog == nil {
+            watchdog = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 120_000_000_000)
+                guard !Task.isCancelled, let self, self.session.state == .transcribing else { return }
+                self.watchdog = nil
+                self.log("Notes: transcription timed out.")
+                self.send(.failed)
+            }
+        } else if !busy, let w = watchdog {
+            w.cancel()
+            watchdog = nil
+        }
         if recording, ticker == nil {
             ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -164,6 +177,8 @@ final class NoteRecorder: ObservableObject {
                 Self.deleteFiles(for: url)
                 return text
             }.value
+            watchdog?.cancel()
+            watchdog = nil
             if text == nil { log("Notes: transcription failed.") }
             let corrected = text.map { DictationDictionary.load().apply($0) }
             send(.transcript(corrected))

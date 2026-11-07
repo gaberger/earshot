@@ -247,6 +247,12 @@ final class Library: ObservableObject {
         dir = home.appendingPathComponent("Recordings/whisper")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         log("Earshot \(AppVersion.display) started")
+        // Leftover temporary audio from a crashed or killed run; nothing can be capturing yet.
+        let tmp = NSTemporaryDirectory()
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: tmp)) ?? []
+        where name.hasPrefix("earshot-note-") || name.hasPrefix("earshot-dictation-") {
+            try? FileManager.default.removeItem(atPath: (tmp as NSString).appendingPathComponent(name))
+        }
         reload()
         selection = items.first?.id
         loadSelected()
@@ -255,7 +261,10 @@ final class Library: ObservableObject {
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recorder?.stop() }
         }
-        dictation.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        dictation.isMeetingRecording = { [weak self] in
+            guard let self else { return false }
+            return self.recording || self.noteRecorder.recordingSince != nil || self.noteRecorder.transcribing
+        }
         dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
         dictation.speakScriptPath = { [weak self] in self?.bin("earshot-speak") ?? "" }
         dictation.runHelper = { await Library.run($0) }
@@ -274,7 +283,13 @@ final class Library: ObservableObject {
         noteRecorder.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
         noteRecorder.log = { [weak self] in self?.log($0) }
         noteRecorder.onNotice = { [weak self] in self?.notice = $0 }
-        noteRecorder.onSaved = { [weak self] text, secs in self?.notes.add(text: text, seconds: secs) }
+        noteRecorder.onSaved = { [weak self] text, secs in
+            guard let self else { return }
+            self.notes.add(text: text, seconds: secs)
+            if self.notes.saveFailed {
+                self.notice = "The note could not be saved to disk, so it will be gone after you quit."
+            }
+        }
         dictation.refresh()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -1575,6 +1590,8 @@ struct HelpView: View {
                 }
 
                 section("The header bar", "menubar.rectangle") {
+                    item("Back to Recordings", "Open a recording and a Recordings / name link appears at the top left. "
+                         + "Click it, press Esc or Command-[, or click Recordings in the sidebar, to return to the list.")
                     item("Record / Stop", "Starts and stops the microphone. The timer shows how long it has recorded. ⌘R.")
                     item("Automatic stop", "If no one speaks for a while, Earshot stops recording by itself. "
                          + "It counts down for 30 seconds first, and Keep recording carries on. "
@@ -1975,6 +1992,7 @@ struct NotesPage: View {
                   },
                   onDelete: { store.remove(id: $0) },
                   onClear: { store.clear() })
+            .onDisappear { recorder.stop() }
     }
 }
 
@@ -2099,17 +2117,6 @@ struct ContentView: View {
             RecordingNow(lib: lib, start: start)
         } else if let r = lib.selected {
             VStack(alignment: .leading, spacing: 0) {
-                Button { lib.selection = nil } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Recordings")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 20)
-                .padding(.top, 12)
                 RecordingDetail(lib: lib, rec: r)
             }
         } else {
@@ -2125,7 +2132,17 @@ struct ContentView: View {
                     Text("Earshot").font(.headline)
                     Spacer()
                 }
-                SidebarNav(selection: $nav.section)
+                SidebarNav(selection: Binding(
+                    get: { nav.section },
+                    set: { new in
+                        switch DetailNav.onSidebarTap(tappedRecordings: new == .recordings, hasOpenRecording: lib.selection != nil) {
+                        case .showRecordingsList:
+                            lib.selection = nil
+                            nav.section = .recordings
+                        case .openSection:
+                            nav.section = new
+                        }
+                    }))
                 Spacer()
                 SidebarStatusCard(ready: !lib.recording,
                                   detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
@@ -2138,9 +2155,20 @@ struct ContentView: View {
         } detail: {
             VStack(spacing: 0) {
                 TopBar(title: nav.section.title, query: $query, hits: hits,
-                       focusToken: nav.focusSearch, onPick: pick)
+                       focusToken: nav.focusSearch, onPick: pick,
+                       back: lib.recording ? nil : DetailNav.backLink(inRecordings: nav.section == .recordings,
+                                                                      openTitle: lib.selected?.title),
+                       onBack: { lib.selection = nil })
                 detailContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onExitCommand {
+                        if DetailNav.escapeReturnsToList(inRecordings: nav.section == .recordings,
+                                                         hasOpenRecording: lib.selection != nil,
+                                                         searchHasText: !query.isEmpty,
+                                                         editingText: lib.editingSummary || lib.renaming != nil) {
+                            lib.selection = nil
+                        }
+                    }
                     .overlay(alignment: .bottom) {
                         if nav.section == .recordings {
                             RecordBar(recordingSince: lib.startedAt,
@@ -2263,8 +2291,7 @@ struct RecordingDetail: View {
             RecordingHeader(
                 title: rec.title,
                 date: rec.date,
-                chips: [rec.hasTranscript ? "Transcribed" : "Not transcribed"]
-                    + (rec.hasSummary ? ["Summarized"] : [])
+                chips: (rec.hasTranscript ? [] : ["Not transcribed"])
                     + (rec.summaryIsEdited ? ["Summary edited"] : []),
                 tabs: Library.Tab.allCases.map(\.rawValue),
                 selectedTab: Binding<Int>(
@@ -2272,7 +2299,7 @@ struct RecordingDetail: View {
                     set: { lib.tab = Library.Tab.allCases[$0] }
                 ),
                 actions: [
-                    HeaderAction(title: "Summarize", icon: "sparkles",
+                    HeaderAction(title: rec.hasSummary ? "Re-summarize" : "Summarize", icon: "sparkles",
                                  enabled: rec.hasTranscript && !lib.summarizing.contains(rec.id),
                                  action: { lib.summarize(rec.id) }),
                     HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true,
