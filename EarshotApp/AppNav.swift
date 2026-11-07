@@ -57,8 +57,6 @@ struct SidebarNav: View {
 struct DictationPage: View {
     let onEnable: () -> Void
     let onResetPermission: () -> Void
-    @AppStorage(DictationPrefs.enabled) private var enabled = false
-    @AppStorage(DictationPrefs.toggle) private var toggle = false
 
     init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void) {
         self.onEnable = onEnable
@@ -75,11 +73,6 @@ struct DictationPage: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 12) {
-                    statCard("Status", enabled ? "On" : "Off")
-                    statCard("Mode", toggle ? "Tap to start, tap to stop" : "Hold to talk")
-                }
-
                 DictationSettingsView(onEnable: onEnable, onResetPermission: onResetPermission)
             }
             .padding(.horizontal, 28)
@@ -87,15 +80,5 @@ struct DictationPage: View {
             .padding(.bottom, 40)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private func statCard(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.semibold)).lineLimit(1)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.accentColor.opacity(0.08)))
     }
 }

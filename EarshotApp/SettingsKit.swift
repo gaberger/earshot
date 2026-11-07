@@ -6,9 +6,11 @@ import AppKit
 struct SettingsSection<Content: View>: View {
     let title: String
     let content: Content
+    let dimmed: Bool
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, dimmed: Bool = false, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.dimmed = dimmed
         self.content = content()
     }
 
@@ -34,6 +36,8 @@ struct SettingsSection<Content: View>: View {
                     .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .opacity(dimmed ? 0.65 : 1)
+            .disabled(dimmed)
         }
     }
 }
@@ -79,16 +83,33 @@ struct SettingsBanner: View {
         self.action = action
     }
 
+    private func actionButton(_ title: String, _ action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .controlSize(.small)
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-            Text(message)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 16)
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                Text(message)
+                    .lineLimit(1)
+                Spacer(minLength: 16)
+                if let actionTitle, let action {
+                    actionButton(actionTitle, action)
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(message)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let actionTitle, let action {
+                    actionButton(actionTitle, action)
+                }
             }
         }
         .foregroundStyle(Color.orange)

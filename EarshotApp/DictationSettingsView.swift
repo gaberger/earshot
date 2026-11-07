@@ -110,7 +110,8 @@ struct DictationSettingsView: View {
         VStack(alignment: .leading, spacing: 24) {
             SettingsSection("Dictation") {
                 SettingsRow("Dictate into any app",
-                            detail: "Hold a shortcut in any app, speak, and Earshot types what you said.") {
+                            detail: enabled ? "Hold a shortcut in any app, speak, and Earshot types what you said."
+                                            : "Turn this on to choose a shortcut.") {
                     Toggle("", isOn: $enabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -119,7 +120,7 @@ struct DictationSettingsView: View {
                         }
                 }
                 if enabled && !trusted {
-                    SettingsBanner("Earshot is not allowed to type for you yet. Press Reset and allow, then turn Earshot on in the list. Until then, what you dictate is copied to the clipboard.",
+                    SettingsBanner("Earshot can't type for you yet. Press Reset and allow, then switch Earshot on in the list.",
                                    actionTitle: "Reset and allow") {
                         onResetPermission()
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -130,7 +131,7 @@ struct DictationSettingsView: View {
             }
 
             Group {
-                SettingsSection("Shortcut") {
+                SettingsSection("Shortcut", dimmed: !enabled) {
                     SettingsRow("To dictate",
                                 detail: "Click the shortcut to change it. " + (toggle ? "Tap to start, tap again to stop." : "Hold the keys while you talk, then let go.")) {
                         HStack {
@@ -161,7 +162,7 @@ struct DictationSettingsView: View {
                     }
                 }
 
-                SettingsSection("Corrections") {
+                SettingsSection("Corrections", dimmed: !enabled) {
                     SettingsRow("Fix words it mishears",
                                 detail: "Whole words only, ignoring case. The longest match wins.") {
                         Button("Add") {
@@ -197,13 +198,14 @@ struct DictationSettingsView: View {
                     }
                 }
 
-                Text("Nothing is typed into password fields. The audio is deleted at once, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "lock.fill").font(.caption2)
+                    Text("Nothing is typed into password fields. The audio is deleted at once, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it.")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
-            .disabled(!enabled)
-            .opacity(enabled ? 1 : 0.5)
         }
         .onChange(of: corrections.map { [$0.heard, $0.write] }) { _, _ in save() }
         .onAppear { trusted = AXIsProcessTrusted() }
