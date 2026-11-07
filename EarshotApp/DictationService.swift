@@ -240,7 +240,8 @@ final class DictationService: ObservableObject {
                 return text
             }.value
             if text == nil { log("Dictation: transcription failed.") }
-            send(.transcript(text, secureInput: IsSecureEventInputEnabled()))
+            let corrected = text.map { DictationDictionary.load().apply($0) }
+            send(.transcript(corrected, secureInput: IsSecureEventInputEnabled()))
         }
     }
 
