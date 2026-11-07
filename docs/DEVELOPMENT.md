@@ -78,6 +78,7 @@ Design decisions are recorded as ADRs in `docs/adrs`, and release notes live in 
 │   └── website/           website copy and screenshot notes
 └── assets/
     ├── Earshot.icon/      the app icon: layered Icon Composer file (background + glass layers)
+    ├── badges/            the README badges (assets/badges/*.svg)
     ├── menubar.svg        the menu bar ear (a template image macOS tints)
     ├── earshot-logo.png   the app icon as macOS draws it, used as the README logo
     └── screenshots/       the five app screenshots in the README (sample data)

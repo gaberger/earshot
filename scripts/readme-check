@@ -13,7 +13,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FLOOR = 90
+FLOOR = 113
 checks = 0
 failures = 0
 DOCS = ["INSTALL", "GUIDE", "PRIVACY", "AGENTS", "DEVELOPMENT"]
@@ -82,8 +82,15 @@ check("no install or build commands in the README",
       not any(c in readme for c in ["brew install", "curl ", "swiftc", "bash EarshotApp", "uv run", "git clone"]))
 check("no tables in the README", not any(l.strip().startswith("|") for l in prose_lines(readme)))
 check("no emoji or icon characters in the README", not EMOJI.search(readme), EMOJI.findall(readme)[:8])
-check("no status badges in the README", "assets/badges/" not in readme and "img.shields.io" not in readme)
-check("the old badge files are gone", not os.path.isdir(os.path.join(ROOT, "assets", "badges")))
+badge_refs = sorted(set(re.findall(r"assets/badges/[A-Za-z0-9_.-]+\.svg", readme)))
+check("README shows the badge row: at least 6 badges from assets/badges/", len(badge_refs) >= 6, badge_refs)
+check("every badge file exists", bool(badge_refs) and all(os.path.exists(os.path.join(ROOT, b)) for b in badge_refs), badge_refs)
+oldcolours = [c for b in badge_refs if os.path.exists(os.path.join(ROOT, b)) for c in ("5b5bf0", "7a5bf0", "2a1a7a")
+              if c in open(os.path.join(ROOT, b), encoding="utf-8").read().lower()]
+check("no badge uses the old indigo or violet", not oldcolours, oldcolours)
+first_badge = readme.find("assets/badges/")
+first_section = readme.find("\n## ")
+check("the badges sit in the header, before the first section", 0 <= first_badge < first_section, (first_badge, first_section))
 check("README does not say it is unpublished", "not published" not in rl and "local repository" not in rl)
 check("no placeholder text", not re.search(r"lorem ipsum|\bTODO\b|\bTBD\b", readme, re.I))
 
@@ -155,7 +162,7 @@ for phrase in ["agent", "provider", "clipboard", "Private Cloud Compute"]:
     check("PRIVACY says: %s" % phrase, phrase.lower() in P.lower())
 for phrase in ["earshot-mcp", "earshot-speak", "read-only", "untrusted", "list_recordings", "get_transcript", "get_summary"]:
     check("AGENTS keeps: %s" % phrase, phrase in A)
-for phrase in ["scripts/release minor", "docs/adrs", "docs/releases", "Tests/run.sh", "build.sh"]:
+for phrase in ["scripts/release minor", "docs/adrs", "docs/releases", "Tests/run.sh", "build.sh", "assets/badges"]:
     check("DEVELOPMENT keeps: %s" % phrase, phrase in D)
 
 print("%d checks, %d failed" % (checks, failures))
