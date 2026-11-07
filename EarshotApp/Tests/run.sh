@@ -27,3 +27,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 # SearchTests also uses @main and fails itself if fewer than 19 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library SearchIndex.swift Tests/SearchTests.swift -o "$out/search-tests"
 "$out/search-tests"
+# DictationLogTests also uses @main and fails itself if fewer than 17 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationLog.swift Tests/DictationLogTests.swift -o "$out/dictation-log-tests"
+"$out/dictation-log-tests"
