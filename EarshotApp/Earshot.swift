@@ -2263,8 +2263,7 @@ struct RecordingDetail: View {
             RecordingHeader(
                 title: rec.title,
                 date: rec.date,
-                chips: [rec.hasTranscript ? "Transcribed" : "Not transcribed"]
-                    + (rec.hasSummary ? ["Summarized"] : [])
+                chips: (rec.hasTranscript ? [] : ["Not transcribed"])
                     + (rec.summaryIsEdited ? ["Summary edited"] : []),
                 tabs: Library.Tab.allCases.map(\.rawValue),
                 selectedTab: Binding<Int>(
@@ -2272,7 +2271,7 @@ struct RecordingDetail: View {
                     set: { lib.tab = Library.Tab.allCases[$0] }
                 ),
                 actions: [
-                    HeaderAction(title: "Summarize", icon: "sparkles",
+                    HeaderAction(title: rec.hasSummary ? "Re-summarize" : "Summarize", icon: "sparkles",
                                  enabled: rec.hasTranscript && !lib.summarizing.contains(rec.id),
                                  action: { lib.summarize(rec.id) }),
                     HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true,
