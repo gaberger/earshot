@@ -55,3 +55,18 @@ fails on a blank scene; the look itself is checked by reading the PNGs in `/tmp/
 
 - ADR-2611062045-dictation-dictionary-and-tap-to-toggle
 - https://github.com/my-monkeys/OpenSuperWhisper (README and docs/screenshots only)
+
+## Amendment 2026-11-06: dictation and recordings are two areas
+
+The owner, looking at OpenSuperWhisper's dark Home with a left navigation, said: "we just need to separate
+dictation from recordings". Today they are mixed: Home (recordings) carries dictation cards, and the dictation
+settings live in the Settings window. Decision:
+
+1. The sidebar gets a navigation at the top with two areas, **Recordings** and **Dictation**.
+2. **Recordings** is what exists: the timeline, Home, the recording screen, a recording's page. Home no
+   longer mentions dictation.
+3. **Dictation** is its own page in the main window: its status (on or off, shortcut, mode) and everything
+   that was in Settings → Dictation (shortcut, mode, corrections, permission). The Settings window keeps
+   Recording, Speakers and General, and points to the Dictation page.
+4. Not in this change: a history of what was dictated. Today the text is pasted and not kept; keeping it is a
+   privacy decision for the owner (text only, local, opt-in), recorded here as open.

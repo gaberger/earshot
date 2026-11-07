@@ -103,8 +103,8 @@
       ],
       "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
       "last_run": {
-        "at": "2026-11-07T02:16:45.042011+00:00",
-        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift DictationSettingsView.swift",
+        "at": "2026-11-07T02:46:21.064960+00:00",
+        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift RecordingViews.swift AppNav.swift DictationSettingsView.swift",
         "stage": "build"
       },
       "pid": 39595,
@@ -132,9 +132,23 @@
         {
           "status": "todo",
           "title": "Menu bar panel and Listening pill"
+        },
+        {
+          "done_at": "2026-11-07T02:48:46.254390+00:00",
+          "status": "done",
+          "title": "Separate dictation from recordings: sidebar navigation, Dictation page, Home for recordings only"
+        },
+        {
+          "done_at": "2026-11-07T02:48:46.264359+00:00",
+          "status": "done",
+          "title": "Recording screen and recording header (done, e53d492)"
+        },
+        {
+          "status": "todo",
+          "title": "Notes box while recording, used by the summary"
         }
       ],
-      "updated": "2026-11-07T02:20:08.067529+00:00"
+      "updated": "2026-11-07T02:48:46.264509+00:00"
     },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
