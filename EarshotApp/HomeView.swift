@@ -100,6 +100,7 @@ struct HomeView: View {
                                 Text(dayTitle(group.day))
                                     .font(.caption.bold())
                                     .tracking(0.8)
+                                    .lineLimit(1)
                                     .foregroundStyle(.secondary)
                                     .padding(.bottom, 4)
                                 ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
@@ -123,8 +124,8 @@ struct HomeView: View {
 
     private func statCard(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.semibold)).lineLimit(1)
+            Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Text(value).font(.title3.weight(.semibold)).lineLimit(1).truncationMode(.tail)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,6 +136,8 @@ struct HomeView: View {
         Button(action: action) {
             Text(title)
                 .font(.callout)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .foregroundStyle(selected ? Color(nsColor: .windowBackgroundColor) : Color.primary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -152,14 +155,22 @@ struct HomeView: View {
                 Text(item.date.formatted(date: .omitted, time: .shortened))
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .frame(width: 52, alignment: .leading)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: 84, alignment: .leading)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.title)
                         .font(failed != nil ? .body.weight(.semibold) : .body)
                         .foregroundStyle(failed != nil ? Color.orange : Color.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(item.detail).font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     if let failed {
                         Text(failed).font(.callout).foregroundStyle(Color.orange)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 Spacer(minLength: 8)
