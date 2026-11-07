@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/earshot-logo.svg" alt="Earshot logo: a charcoal tile with an orange ear and orange sound waves" width="140">
+<img src="assets/earshot-logo.png" alt="Earshot logo: a charcoal tile with an orange ear and orange sound waves" width="140">
 
 # Earshot
 
@@ -450,7 +450,7 @@ Design decisions are recorded as ADRs in `docs/adrs`, and release notes live in 
 └── assets/
     ├── Earshot.icon/      the app icon: layered Icon Composer file (background + glass layers)
     ├── menubar.svg        the menu bar ear (a template image macOS tints)
-    ├── earshot-logo.svg   the flat logo for this README
+    ├── earshot-logo.png   the app icon as macOS draws it, used as the README logo
     ├── screenshots/       the five app screenshots above (sample data)
     └── badges/            the badges above, drawn locally
 ```
