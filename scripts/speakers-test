@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Gate for speakers' transcript write: <base>.txt is read concurrently (earshot-mcp, the app), so
+it must be replaced atomically, never truncated in place.
+
+Run: python3 -I scripts/speakers-test
+speakers needs sherpa-onnx, so the real write_atomic is lifted from the shipped file with ast.
+Fails itself if fewer than MIN_CHECKS checks ran (a vacuous pass is a failed gate).
+"""
+import ast
+import os
+import stat
+import sys
+import tempfile
+from pathlib import Path
+
+MIN_CHECKS = 9
+HERE = os.path.dirname(os.path.abspath(__file__))
+src = Path(HERE, "speakers").read_text(encoding="utf-8")
+tree = ast.parse(src)
+checks = failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", str(detail)[:300])
+
+
+fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "write_atomic"]
+check("speakers defines write_atomic", len(fns) == 1)
+main_src = ast.get_source_segment(src, next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"))
+check("main() writes the transcript via write_atomic", "write_atomic(txt_path" in main_src)
+check("main() does not truncate the transcript in place", "txt_path.write_text" not in main_src)
+if not fns:
+    print("FAIL: cannot continue"); sys.exit(1)
+
+ns = {"os": os, "tempfile": tempfile, "Path": Path}
+exec(compile(ast.Module([fns[0]], []), "speakers", "exec"), ns)
+write_atomic = ns["write_atomic"]
+
+with tempfile.TemporaryDirectory() as d:
+    p = Path(d, "rec.txt")
+    p.write_text("ORIGINAL\n")
+    os.chmod(p, 0o640)
+    inode = p.stat().st_ino
+    seen = []
+    real_replace = os.replace
+    def spy(a, b):
+        # at the moment of the swap the old transcript must still be whole
+        seen.append(p.read_text())
+        return real_replace(a, b)
+    ns["os"] = type("O", (), {})()
+    for k in dir(os):
+        setattr(ns["os"], k, getattr(os, k))
+    ns["os"].replace = spy
+    write_atomic(p, "NEW\n")
+    check("old content intact until the atomic swap", seen == ["ORIGINAL\n"], seen)
+    check("new content written", p.read_text() == "NEW\n")
+    check("replaced by a new inode, not truncated in place", p.stat().st_ino != inode)
+    check("file mode preserved", stat.S_IMODE(p.stat().st_mode) == 0o640)
+    check("no temp files left behind", os.listdir(d) == ["rec.txt"], os.listdir(d))
+
+    # failure mid-write leaves the original untouched and cleans up
+    def boom(a, b):
+        raise OSError("disk full")
+    ns["os"].replace = boom
+    try:
+        write_atomic(p, "LOST\n")
+    except OSError:
+        pass
+    check("failed write keeps the original and leaves no temp", p.read_text() == "NEW\n" and os.listdir(d) == ["rec.txt"], os.listdir(d))
+
+# -n 0 is auto mode in sherpa-onnx (num_clusters <= 0 uses the threshold), so the tiny-speaker merge must run
+merge_ifs = [n for n in ast.walk(next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"))
+             if isinstance(n, ast.If) and "drop_tiny_speakers" in ast.unparse(n.body)]
+check("main() guards drop_tiny_speakers with one condition", len(merge_ifs) == 1)
+if merge_ifs:
+    guard = compile(ast.Expression(merge_ifs[0].test), "guard", "eval")
+    ran = {n: eval(guard, {"args": type("A", (), {"num_speakers": n})}) for n in (-1, 0, 2)}
+    check("tiny-speaker merge runs for -n -1 and -n 0, not for an exact count", ran == {-1: True, 0: True, 2: False}, ran)
+
+print(f"{checks} checks, {failures} failed")
+if checks < MIN_CHECKS:
+    print(f"FAIL: only {checks} checks ran (< {MIN_CHECKS})")
+    sys.exit(1)
+sys.exit(1 if failures else 0)

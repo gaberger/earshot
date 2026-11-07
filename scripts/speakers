@@ -38,6 +38,28 @@ MIN_SHARE = 0.02
 SENTENCE_END = (".", "?", "!")
 
 
+def write_atomic(path: Path, text: str) -> None:
+    """Replace path with text so a concurrent reader sees the old file or the new one, never a
+    truncated or half-written one: write a temp file beside it, fsync, then os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp, path.stat().st_mode & 0o7777)
+        except FileNotFoundError:
+            os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def load_16k_mono(path: Path) -> np.ndarray:
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "in.wav"
@@ -143,7 +165,7 @@ def main():
     if not turns:
         print("speakers: no speech turns found; transcript left as is", file=sys.stderr)
         return
-    if args.num_speakers < 0:
+    if args.num_speakers <= 0:  # sherpa-onnx clusters by threshold for any n <= 0
         turns = drop_tiny_speakers(turns)
 
     # Split into sentences, and give each sentence to whoever spoke most of it, so a
@@ -174,7 +196,7 @@ def main():
     if buf:
         lines.append(f"[{stamp(started)}] Speaker {current}: {' '.join(buf)}")
 
-    txt_path.write_text("\n\n".join(lines) + "\n", encoding="utf-8")
+    write_atomic(txt_path, "\n\n".join(lines) + "\n")
     print(f"speakers: {len(order)} speaker(s), {len(lines)} turns → {txt_path}", file=sys.stderr)
 
 
