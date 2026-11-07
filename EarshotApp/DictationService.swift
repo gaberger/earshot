@@ -46,6 +46,21 @@ final class DictationService: ObservableObject {
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
     }
 
+    /// Removes a stale Accessibility entry (left by an old build) and asks macOS again.
+    static func resetAccessibilityPermission() {
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.gaberger.earshot"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            process.arguments = ["reset", "Accessibility", bundleID]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+            DispatchQueue.main.async { requestPermissions() }
+        }
+    }
+
     // MARK: Hotkey
 
     /// Registers or unregisters the hotkey to match the preference. Safe to call any number of times.
@@ -304,8 +319,12 @@ final class DictationService: ObservableObject {
     private func paste(_ text: String) {
         guard AXIsProcessTrusted() else {
             _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-            send(.failed)
-            notify("Dictation needs Accessibility to type for you. Allow Earshot in System Settings → Privacy & Security → Accessibility.")
+            // The clipboard is the only copy of the text here, so no transient markers.
+            let board = NSPasteboard.general
+            board.clearContents()
+            board.setString(text, forType: .string)
+            send(.inserted)
+            notify("Earshot can't type for you yet, so what you said is on the clipboard: press ⌘V to paste it. To type automatically, allow Earshot in System Settings → Privacy & Security → Accessibility.")
             return
         }
         let board = NSPasteboard.general
