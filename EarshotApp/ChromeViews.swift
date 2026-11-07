@@ -65,7 +65,7 @@ struct TopBar: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search recordings, settings", text: $query)
+            TextField("Search recordings, notes, settings", text: $query)
                 .textFieldStyle(.plain)
                 .focused($focused)
             if query.isEmpty {
@@ -115,6 +115,7 @@ struct TopBar: View {
         switch hit {
         case let .recording(_, t, snippet): icon = "waveform"; title = t; detail = snippet
         case let .destination(_, t, d): icon = "gearshape"; title = t; detail = d
+        case let .note(_, t, snippet): icon = "note.text"; title = t; detail = snippet
         }
         return Button { onPick(hit) } label: {
             HStack(spacing: 8) {

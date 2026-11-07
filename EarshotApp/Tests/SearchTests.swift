@@ -11,7 +11,7 @@ func checkTrue(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String =
 
 func doc(_ id: String, _ title: String, _ text: String) -> SearchDoc { SearchDoc(id: id, title: title, text: text) }
 func ids(_ hits: [SearchHit]) -> [String] {
-    hits.map { if case .recording(let id, _, _) = $0 { return "r:" + id } else if case .destination(let id, _, _) = $0 { return "d:" + id } else { return "?" } }
+    hits.map { if case .recording(let id, _, _) = $0 { return "r:" + id } else if case .destination(let id, _, _) = $0 { return "d:" + id } else if case .note(let id, _, _) = $0 { return "n:" + id } else { return "?" } }
 }
 func snippet(_ hit: SearchHit) -> String { if case .recording(_, _, let s) = hit { return s } else { return "" } }
 
@@ -65,8 +65,26 @@ func snippet(_ hit: SearchHit) -> String { if case .recording(_, _, let s) = hit
         let five = (1...6).map { SearchDestination(id: "p\($0)", title: "Page \($0)", detail: "", keywords: ["page"]) }
         checkTrue("settings are limited to four", SearchIndex.search("page", recordings: [], destinations: five).count == 4)
 
+
+        // MARK: notes (voice notes recorded in Earshot) are searched too
+        let n1 = doc("n1", "Remind me to check the build", "Remind me to check the build before the standup and ask about the roadmap.")
+        let n2 = doc("n2", "Garage idea", "Turn the garage into a workshop.")
+        checkTrue("a note is found by a word in its text", ids(SearchIndex.search("standup", recordings: docs, destinations: [], notes: [n1, n2])) == ["n:n1"],
+                  "\(ids(SearchIndex.search("standup", recordings: docs, destinations: [], notes: [n1, n2])))")
+        checkTrue("settings first, then notes, then recordings",
+                  ids(SearchIndex.search("roadmap", recordings: [a], destinations: [SearchDestination(id: "d", title: "Roadmap settings", detail: "", keywords: [])], notes: [n1]))
+                  == ["d:d", "n:n1", "r:a"],
+                  "\(ids(SearchIndex.search("roadmap", recordings: [a], destinations: [SearchDestination(id: "d", title: "Roadmap settings", detail: "", keywords: [])], notes: [n1])))")
+        let sixNotes = (1...6).map { doc("m\($0)", "Meeting note \($0)", "agenda") }
+        checkTrue("notes are limited to four", SearchIndex.search("agenda", recordings: [], destinations: [], notes: sixNotes).count == 4)
+        let longNote = doc("ln", "Long", String(repeating: "x", count: 100) + " launch " + String(repeating: "y", count: 100))
+        let noteHit = SearchIndex.search("launch", recordings: [], destinations: [], notes: [longNote])
+        checkTrue("a note snippet is cut around the match like a recording's",
+                  noteHit.count == 1 && { if case .note(_, _, let s) = noteHit[0] { return s.contains("launch") && s.hasPrefix("…") && s.count <= 100 } else { return false } }())
+        checkTrue("an empty query finds no notes either", SearchIndex.search("", recordings: [], destinations: [], notes: [n1]).isEmpty)
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 19 { print("VACUOUS: only \(checks) checks ran, need 19"); exit(1) }
+        if checks < 24 { print("VACUOUS: only \(checks) checks ran, need 24"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }

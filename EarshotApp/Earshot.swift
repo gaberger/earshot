@@ -2003,7 +2003,11 @@ struct ContentView: View {
     private var hits: [SearchHit] {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
         let docs = lib.items.map { SearchDoc(id: $0.id, title: $0.title, text: searchTexts[$0.id] ?? "") }
-        return SearchIndex.search(query, recordings: docs, destinations: Self.destinations)
+        let noteDocs = lib.notes.items.map { item -> SearchDoc in
+            let oneLine = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            return SearchDoc(id: item.id, title: String(oneLine.prefix(60)), text: item.text)
+        }
+        return SearchIndex.search(query, recordings: docs, destinations: Self.destinations, notes: noteDocs)
     }
 
     private func pick(_ hit: SearchHit) {
@@ -2011,6 +2015,8 @@ struct ContentView: View {
         case let .recording(id, _, _):
             nav.section = .recordings
             lib.selection = id
+        case .note:
+            nav.section = .notes
         case let .destination(id, _, _):
             if id == "noteslog" {
                 nav.section = .notes

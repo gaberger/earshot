@@ -7,10 +7,12 @@ struct SearchDestination { var id: String; var title: String; var detail: String
 enum SearchHit: Equatable {
     case recording(id: String, title: String, snippet: String)
     case destination(id: String, title: String, detail: String)
+    case note(id: String, title: String, snippet: String)
 }
 
 enum SearchIndex {
     private static let maxDestinations = 4
+    private static let maxNotes = 4
     private static let wholeLimit = 100
     private static let windowSize = 90
 
@@ -18,7 +20,7 @@ enum SearchIndex {
         s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
     }
 
-    static func search(_ query: String, recordings: [SearchDoc], destinations: [SearchDestination], limit: Int = 8) -> [SearchHit] {
+    static func search(_ query: String, recordings: [SearchDoc], destinations: [SearchDestination], notes: [SearchDoc] = [], limit: Int = 8) -> [SearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return [] }
         let rawWords = trimmed.split(whereSeparator: { $0.isWhitespace }).map(String.init)
@@ -34,15 +36,21 @@ enum SearchIndex {
             }
         }
 
-        var titleHits: [SearchDoc] = []
-        var bodyHits: [SearchDoc] = []
-        for r in recordings {
-            let title = fold(r.title)
-            if words.allSatisfy({ title.contains($0) }) { titleHits.append(r); continue }
-            let hay = title + " " + fold(r.text)
-            if words.allSatisfy({ hay.contains($0) }) { bodyHits.append(r) }
+        func rank(_ docs: [SearchDoc]) -> [SearchDoc] {
+            var titleHits: [SearchDoc] = []
+            var bodyHits: [SearchDoc] = []
+            for r in docs {
+                let title = fold(r.title)
+                if words.allSatisfy({ title.contains($0) }) { titleHits.append(r); continue }
+                let hay = title + " " + fold(r.text)
+                if words.allSatisfy({ hay.contains($0) }) { bodyHits.append(r) }
+            }
+            return titleHits + bodyHits
         }
-        for r in (titleHits + bodyHits).prefix(max(0, limit)) {
+        for n in rank(notes).prefix(maxNotes) {
+            hits.append(.note(id: n.id, title: n.title, snippet: snippet(n.text, words: rawWords)))
+        }
+        for r in rank(recordings).prefix(max(0, limit)) {
             hits.append(.recording(id: r.id, title: r.title, snippet: snippet(r.text, words: rawWords)))
         }
         return hits
