@@ -55,7 +55,7 @@ import AppKit
                 .init(id: "e", date: now.addingTimeInterval(-86400 - 7200), title: "Roadmap review", detail: "55 min · transcribed · summarized", state: .done),
             ]
             return AnyView(
-                HomeView(shortcut: "⌃⌥Space", dictationOn: true, items: items, onOpen: { _ in })
+                HomeView(items: items, onOpen: { _ in })
                     .overlay(alignment: .bottom) { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
                     .frame(width: 760, height: 640)
                     .background(Color(nsColor: .windowBackgroundColor)))
@@ -86,6 +86,19 @@ import AppKit
                                         HeaderAction(title: "Finder", icon: "folder", enabled: true, action: {}),
                                     ], onRename: {})
                 .padding(24).frame(width: 760).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("sidebar-nav", {
+            AnyView(VStack(spacing: 16) {
+                SidebarNav(selection: .constant(.recordings))
+                SidebarNav(selection: .constant(.dictation))
+            }.padding(16).frame(width: 260).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("dictation-page", {
+            UserDefaults.standard.set(true, forKey: DictationPrefs.enabled)
+            UserDefaults.standard.set(false, forKey: DictationPrefs.toggle)
+            DictationDictionary(entries: [.init(heard: "ear shot", write: "Earshot")]).save()
+            return AnyView(DictationPage(onEnable: {}, onResetPermission: {})
+                .frame(width: 760, height: 900).background(Color(nsColor: .windowBackgroundColor)))
         }),
     ]
 }

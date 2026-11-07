@@ -18,17 +18,13 @@ struct HomeItem: Identifiable, Equatable {
 }
 
 struct HomeView: View {
-    let shortcut: String
-    let dictationOn: Bool
     let items: [HomeItem]
     let onOpen: (String) -> Void
 
     private enum Filter { case all, errors }
     @State private var filter: Filter = .all
 
-    init(shortcut: String, dictationOn: Bool, items: [HomeItem], onOpen: @escaping (String) -> Void) {
-        self.shortcut = shortcut
-        self.dictationOn = dictationOn
+    init(items: [HomeItem], onOpen: @escaping (String) -> Void) {
         self.items = items
         self.onOpen = onOpen
     }
@@ -46,6 +42,11 @@ struct HomeView: View {
 
     private var todayCount: Int {
         items.filter { Calendar.current.isDateInToday($0.date) }.count
+    }
+
+    private var weekCount: Int {
+        let cutoff = Date().addingTimeInterval(-7 * 86400)
+        return items.filter { $0.date >= cutoff }.count
     }
 
     private var visibleItems: [HomeItem] {
@@ -68,17 +69,15 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(greeting).font(.largeTitle.bold())
-                    Text(dictationOn
-                         ? "Hold \(shortcut), speak, release. The text lands where you type."
-                         : "Press Record, or drop an audio or video file here. Everything stays on this Mac.")
+                    Text("Press Record, or drop an audio or video file here. Everything stays on this Mac.")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 12) {
-                    statCard("Shortcut", shortcut)
-                    statCard("Dictation", dictationOn ? "On" : "Off")
                     statCard("Today", "\(todayCount) \(todayCount == 1 ? "recording" : "recordings")")
+                    statCard("This week", "\(weekCount) \(weekCount == 1 ? "recording" : "recordings")")
+                    statCard("Needs attention", failedCount == 0 ? "None" : "\(failedCount)")
                 }
 
                 HStack(spacing: 8) {
