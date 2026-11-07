@@ -91,6 +91,24 @@
       ],
       "updated": "2026-11-06T23:09:40.703611+00:00"
     },
+    "af3b401a-8528-4ed1-9708-c8d9eb9f55ce": {
+      "adr": "ADR-2611062045",
+      "files": [
+        "docs/adrs/ADR-2611062045-dictation-dictionary-and-tap-to-toggle.md",
+        "EarshotApp/Tests/DictionaryTests.swift",
+        "README.md"
+      ],
+      "gate": "bash EarshotApp/Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-07T01:52:17.963417+00:00",
+        "gate": "cd EarshotApp && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift",
+        "stage": "build"
+      },
+      "pid": 39595,
+      "pid_start": null,
+      "stage": "done",
+      "updated": "2026-11-07T01:55:34.389208+00:00"
+    },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
       "evidence": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2",
