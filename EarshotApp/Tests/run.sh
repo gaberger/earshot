@@ -53,3 +53,5 @@ python3 -I ../scripts/earshot-speak-test
 # SpeechStopTests also uses @main and fails itself if fewer than 7 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SpeechStopTests.swift -o "$out/speech-stop-tests"
 "$out/speech-stop-tests"
+# The in-app Help must mention every user-facing feature (it went several features stale once).
+bash Tests/help-check.sh

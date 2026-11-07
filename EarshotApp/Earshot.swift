@@ -1605,6 +1605,47 @@ struct HelpView: View {
                          + "GPU counts the whole graphics chip, where Whisper and the summary model do most of their work.")
                 }
 
+                section("Dictation", "keyboard") {
+                    item("Dictate into any app", "Off until you turn it on in Settings, Dictation. Hold the shortcut "
+                         + "(Control, Option, Space unless you change it), speak, and let go: Earshot types what you "
+                         + "said into the app in front. It needs Microphone and Accessibility permission.")
+                    item("Tap to start, tap to stop", "An alternative to holding the keys, in Settings, Dictation, Mode.")
+                    item("Fix words it mishears", "In Settings, Dictation, Corrections, write one per line as: "
+                         + "ear shot => Earshot. Whole words only, ignoring case.")
+                    item("Tidy up what I say", "Optional, off by default. Removes ums and fixes punctuation using "
+                         + "Apple's on-device model, so the text stays on this Mac. It can reword slightly, and if "
+                         + "the model is unavailable the original words are typed.")
+                    item("Highlight the window", "A little fire around the window your words will be typed into while "
+                         + "you dictate. It only reads the window position and size. With Reduce Motion on, it is a "
+                         + "plain glowing border. Turn it off in Settings, Dictation.")
+                    item("Press Return after typing", "Off by default. Presses Return once after the text is typed, "
+                         + "so a chat message sends or a form submits. It does nothing for empty text, or when the "
+                         + "text could only be left on the clipboard.")
+                    para("Dictation keeps nothing: no text and no audio is saved, except a clip that could not be "
+                         + "transcribed, which is kept until your next dictation so Retry last dictation in the menu "
+                         + "bar can try again. It never types into password fields, and it is off while a meeting is "
+                         + "being recorded.")
+                }
+
+                section("Notes", "note.text") {
+                    para("Notes is a separate area for your own voice notes. Press Record a note, speak, press Stop. "
+                         + "The note is transcribed on this Mac and saved in the list, grouped by day, with Copy and "
+                         + "Delete on each. Only the text is kept; the audio is deleted at once. Clear all deletes "
+                         + "every note. Nothing is typed into other apps.")
+                }
+
+                section("Agents and spoken replies", "waveform") {
+                    item("MCP server for agents", "scripts/earshot-mcp is a small read-only server that lets an agent "
+                         + "such as Claude Code list your recordings and read their transcripts and summaries. It opens "
+                         + "no port and uses no network. Connecting an agent means that agent receives the text it asks "
+                         + "for and may send it to its own provider, which is outside the promise that everything "
+                         + "stays on this Mac.")
+                    item("Hear spoken replies", "scripts/earshot-speak says a short version of each Claude Code reply "
+                         + "out loud using the macOS say command, entirely on this Mac. It is off until you run "
+                         + "earshot-speak on, and it speaks only for the session you ran it from. earshot-speak off "
+                         + "turns it off. Pressing the dictation hotkey stops the voice so you can talk over it.")
+                }
+
                 section("Good to know", "info.circle") {
                     para("Summaries need macOS 26.4 or later with Apple Intelligence turned on, in System Settings → "
                          + "Apple Intelligence & Siri.")
