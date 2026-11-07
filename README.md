@@ -36,6 +36,7 @@ all on-device, with no account, no cloud and no internet connection.
 | ✨ **Summarize** | Nine Plaud-style templates, from meeting minutes to sales calls, with action items. |
 | ✏️ **Edit** | Fix the summary in a rich-text editor: headings, bold, bullets, checkboxes. Edited summaries are never replaced without asking. |
 | 🌍 **Translate** | Turns speech in other languages into English text. |
+| ⌨️ **Dictate** | Hold a shortcut (<kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> unless you change it) in any app, speak, let go, and Earshot types what you said, into a form, an email, anywhere. A small **Listening…** indicator shows while it hears you. Off until you turn it on in Settings. |
 | 🗂️ **Timeline** | Every recording by day, named by its summary or by you. |
 | 🧭 **Menu bar** | The ear at the top of the screen: record without opening the window, see the timer, jump to recent recordings. |
 | 📊 **Status bar** | What Earshot is doing now, plus live CPU, GPU and memory use, along the bottom of the window. |
@@ -87,6 +88,31 @@ Every summary starts with the date, length and speakers, and ends with action it
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the open tab |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings: microphone, speakers, default template |
 | <kbd>⌘</kbd> <kbd>?</kbd> | How Earshot works |
+| <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> | Dictate: hold, speak, release (in any app, once turned on in Settings; you can change the keys) |
+
+### Dictation
+
+Turn on **Settings → Dictation → Dictate into any app**. Earshot asks for **Microphone** and
+**Accessibility** access (System Settings → Privacy & Security); Accessibility is what lets it type
+for you. Then click into any text field, hold <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd>, speak, and
+let go. A second or two later the text appears where your cursor is.
+
+- **Change the shortcut** under **Settings → Dictation → Shortcut**: click it and press the keys you
+  want. It must include <kbd>⌃</kbd> or <kbd>⌥</kbd> (or be a function key such as <kbd>F5</kbd>), so it
+  never steals ordinary typing, and shortcuts macOS already owns can't be chosen. **Reset** brings back
+  the default. If another app already uses your choice, Earshot says so.
+- **The indicator.** While you hold the keys a small **Listening…** pill with a live level bar floats
+  near the bottom of the screen you're on, so you can see the microphone is hearing you. It switches
+  to **Transcribing…** after you let go, then disappears as the text arrives. It never takes focus
+  from the field you're typing into.
+
+- It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once.
+- The microphone is open only while you hold the keys. A tap shorter than a third of a second does
+  nothing, and a hold stops by itself after a minute.
+- It types by pasting, then puts back whatever was on your clipboard.
+- It won't type into password fields, and it's off while a meeting is being recorded.
+- The app isn't notarized, so macOS may forget the Accessibility permission after an update. If
+  Dictation stops typing, switch Earshot off and on again in the Accessibility list.
 
 ## 🚀 Installation
 
@@ -273,17 +299,21 @@ MAJOR for changes that break how things worked before. `build.sh` stamps it into
 build number (the commit count, so it only goes up) and the commit hash, marked `-dirty` when
 built from uncommitted changes.
 
-To release:
+To release, write the notes in `docs/releases/<version>.md` (they must name `Earshot-<version>.dmg`
+and say the About version reads `<version>`), then, from `main`:
 
 ```bash
-echo 1.1.0 > VERSION
-git commit -am "Earshot 1.1.0"
-git tag v1.1.0
-git push origin main --tags && git push github main --tags
+scripts/release minor -m "what's new"    # or patch, major, or an exact version like 1.1.0
+scripts/release minor --dry-run          # check everything, change nothing
+scripts/release minor -m "..." --push    # also push main and the tag to origin and github
 ```
 
+The script refuses unless you're on `main` with a clean tree, the notes exist, the version is newer
+and the tests pass. It bumps `VERSION`, commits it with the notes, and tags `v<version>`. Without
+`--push` it prints the push commands. `scripts/release-test` checks the script itself.
+
 The tag makes CI build the disk image and publish it as a
-[GitHub release](https://github.com/gaberger/earshot/releases) with notes from the commits.
+[GitHub release](https://github.com/gaberger/earshot/releases) with the notes file.
 CI stops if the tag and `VERSION` don't match.
 
 ## 🗂️ Project layout

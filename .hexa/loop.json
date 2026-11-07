@@ -16,6 +16,81 @@
       "stage": "build",
       "updated": "2026-11-06T17:03:32.746765+00:00"
     },
+    "a3af30eb-c7d6-477d-88da-cbf86dcd00da": {
+      "adr": "ADR-2611061900",
+      "files": [
+        "scripts/release-test",
+        "scripts/release",
+        "docs/adrs/ADR-2611061900-dictate-into-any-app.md",
+        "README.md",
+        "docs/releases/1.1.0.md",
+        "EarshotApp/Tests/HotKeyTests.swift",
+        "EarshotApp/Tests/DictationTests.swift",
+        "EarshotApp/Tests/run.sh"
+      ],
+      "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationService.swift HotKey.swift DictationHUD.swift && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-06T23:07:32.000080+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationService.swift HotKey.swift DictationHUD.swift && bash Tests/run.sh >/dev/null && grep -q \"HotKey.swift\" build.sh && grep -q \"DictationHUD.swift\" build.sh && grep -q HotKeyRecorder Earshot.swift && ! grep -q \"Hold Control+Option+Space\" Earshot.swift",
+        "stage": "build"
+      },
+      "pid": 29691,
+      "pid_start": null,
+      "stage": "gate",
+      "tasks": [
+        {
+          "done_at": "2026-11-06T18:15:52.174217+00:00",
+          "status": "done",
+          "title": "scripts/release: validate, bump VERSION, commit, tag, optional push"
+        },
+        {
+          "done_at": "2026-11-06T18:30:23.156622+00:00",
+          "status": "done",
+          "title": "Dictation.swift: pure DictationSession state machine + text cleanup, with DictationTests"
+        },
+        {
+          "done_at": "2026-11-06T18:34:06.314855+00:00",
+          "status": "done",
+          "title": "DictationService.swift: hotkey, capture, transcribe, paste, secure-field check"
+        },
+        {
+          "done_at": "2026-11-06T18:36:21.798942+00:00",
+          "status": "done",
+          "title": "Wire into Earshot.swift + build.sh: Settings → Dictation, Accessibility prompt"
+        },
+        {
+          "done_at": "2026-11-06T18:36:21.811285+00:00",
+          "status": "done",
+          "title": "Docs: README + release notes"
+        },
+        {
+          "done_at": "2026-11-06T23:05:38.772434+00:00",
+          "status": "done",
+          "title": "HotKey.swift: HotKey value type (validity, display, Cocoa→Carbon, load/save) with HotKeyTests"
+        },
+        {
+          "done_at": "2026-11-06T23:07:31.961352+00:00",
+          "status": "done",
+          "title": "Dictation.swift: State.indicatorText / showsLevel"
+        },
+        {
+          "done_at": "2026-11-06T23:07:31.974894+00:00",
+          "status": "done",
+          "title": "DictationHUD.swift: non-activating floating Listening… panel with live level; service shows/hides it"
+        },
+        {
+          "done_at": "2026-11-06T23:09:40.693080+00:00",
+          "status": "done",
+          "title": "Service uses the saved HotKey and re-registers on change; Settings key recorder + Reset; build.sh"
+        },
+        {
+          "done_at": "2026-11-06T23:09:40.703490+00:00",
+          "status": "done",
+          "title": "Docs: README, release notes, ADR amendment"
+        }
+      ],
+      "updated": "2026-11-06T23:09:40.703611+00:00"
+    },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
       "evidence": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2",
