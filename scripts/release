@@ -44,7 +44,7 @@ done
 
 [[ $(git branch --show-current) == main ]] || die "release from main (on '$(git branch --show-current)')"
 notes=docs/releases/$version.md
-dirty=$(git status --porcelain --untracked-files=all | grep -vF " $notes" || true)
+dirty=$(git status --porcelain --untracked-files=all | awk -v n="$notes" 'substr($0, 4) != n' || true)  # whole-path match, not substring
 [[ -z $dirty ]] || die "working tree is not clean (only $notes may be uncommitted):
 $dirty"
 [[ -s $notes ]] || die "write the release notes first: $notes"

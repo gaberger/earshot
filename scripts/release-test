@@ -3,7 +3,7 @@
 # Exit 0 only if every check passed AND at least MIN_CHECKS ran (a run that checks nothing fails).
 set -u
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/release"
-MIN_CHECKS=16
+MIN_CHECKS=19
 pass=0; fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export RELEASE_SKIP_TESTS=1 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
@@ -72,6 +72,14 @@ d=$(fresh); echo 1.0.08 > "$d/VERSION"; git -C "$d" commit -qam v108; rm "$d/doc
 expect_ok "patch on 1.0.08 does not abort" rel "$d" patch --dry-run
 d=$(fresh); echo 1.0.9 > "$d/VERSION"; git -C "$d" commit -qam v109; rm "$d/docs/releases/1.0.5.md"; notes "$d" 1.0.010
 expect_ok "1.0.010 is newer than 1.0.9" rel "$d" 1.0.010 --dry-run
+
+echo "only the exact notes path may be dirty"
+d=$(fresh); echo x > "$d/docs/releases/1.0.5.md.orig"
+expect_fail "refuses a stray .md.orig beside the notes" rel "$d" 1.0.5 --dry-run
+d=$(fresh); echo x > "$d/docs/releases/1.0.5.md.bak"
+expect_fail "refuses a stray .md.bak beside the notes" rel "$d" 1.0.5 --dry-run
+d=$(fresh); echo x > "$d/old.md"; git -C "$d" add old.md; git -C "$d" commit -qm old; git -C "$d" mv old.md docs/releases/1.0.5.md.moved
+expect_fail "refuses a rename whose new path extends the notes path" rel "$d" 1.0.5 --dry-run
 
 echo "push"
 d=$(fresh); git init -q --bare "$tmp/remote.git"; git -C "$d" remote add origin "$tmp/remote.git"
