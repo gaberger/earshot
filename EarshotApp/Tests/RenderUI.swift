@@ -4,6 +4,108 @@
 import SwiftUI
 import AppKit
 
+let sampleHits: [SearchHit] = [
+    .destination(id: "shortcut", title: "Shortcut", detail: "Dictation · change the dictation shortcut"),
+    .recording(id: "c", title: "Roadmap review", snippet: "Nothing about dates."),
+    .recording(id: "a", title: "Weekly sync", snippet: "…we talked about the roadmap and the launch date."),
+]
+
+func sampleHomeItems() -> [HomeItem] {
+    let now = Date()
+    return [
+        .init(id: "a", date: now, title: "Weekly sync with the platform team", detail: "42 min · transcribed · summarized", state: .done),
+        .init(id: "b", date: now.addingTimeInterval(-3 * 3600), title: "Call with Priya", detail: "18 min · transcribed", state: .done),
+        .init(id: "c", date: now.addingTimeInterval(-5 * 3600), title: "product-meeting-0910.m4a", detail: "Imported file · 1 h 04 min", state: .working),
+        .init(id: "d", date: now.addingTimeInterval(-86400), title: "Recording 2026-11-05 16:12", detail: "6 min", state: .failed("Could not transcribe: the audio file is empty")),
+        .init(id: "e", date: now.addingTimeInterval(-86400 - 7200), title: "Roadmap review", detail: "55 min · transcribed · summarized", state: .done),
+    ]
+}
+
+func sampleNoteItems() -> [NoteItem] {
+    let now = Date()
+    return [
+        .init(id: "1", date: now, text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", seconds: 9),
+        .init(id: "2", date: now.addingTimeInterval(-5400), text: "Idea for the onboarding screen: show the shortcut first, then the permission, and only then the settings.", seconds: 14),
+        .init(id: "3", date: now.addingTimeInterval(-86400), text: "An idea for this weekend: turn the garage into a workshop, start with the shelving and the workbench.", seconds: 12),
+        .init(id: "4", date: now.addingTimeInterval(-86400 - 3600), text: "Short one.", seconds: 2),
+    ]
+}
+
+func setUpDictationOn() {
+    UserDefaults.standard.set(true, forKey: DictationPrefs.enabled)
+    UserDefaults.standard.set(true, forKey: DictationPrefs.toggle)
+    DictationDictionary(entries: [
+        .init(heard: "ear shot", write: "Earshot"),
+        .init(heard: "kay eight s", write: "k8s"),
+    ]).save()
+}
+
+/// The brand mark, loaded from disk because AppIcon lives in Earshot.swift, which the harness does not compile.
+@MainActor func brandMark() -> AnyView {
+    let path = "../docs/brand/logo-b-512.png"
+    if FileManager.default.fileExists(atPath: path), let img = NSImage(contentsOfFile: path) {
+        return AnyView(Image(nsImage: img).resizable().interpolation(.high)
+            .frame(width: 26, height: 26).clipShape(RoundedRectangle(cornerRadius: 6)))
+    }
+    return AnyView(RoundedRectangle(cornerRadius: 6).fill(Color.brandAccent).frame(width: 26, height: 26))
+}
+
+/// Composes the real views in the same layout as ContentView in Earshot.swift.
+@MainActor func windowShell(section: AppSection, query: String, hits: [SearchHit], showRecordBar: Bool, content: AnyView) -> AnyView {
+    let sidebar = VStack(alignment: .leading, spacing: 12) {
+        HStack {
+            brandMark()
+            Text("Earshot").font(.headline)
+            Spacer()
+        }
+        SidebarNav(selection: .constant(section))
+        Spacer()
+        SidebarStatusCard(ready: true, detail: "Whisper · MacBook Pro Microphone")
+        SidebarFooter(settingsSelected: false, onSettings: {}, onHelp: {})
+    }
+    .padding(12)
+    .frame(width: 230)
+    .frame(maxHeight: .infinity)
+    .background(Color(nsColor: .underPageBackgroundColor))
+
+    let detail = VStack(spacing: 0) {
+        TopBar(title: section.title, query: .constant(query), hits: hits, focusToken: 0, onPick: { _ in })
+        content.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    .overlay(alignment: .bottom) {
+        if showRecordBar { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
+    }
+
+    // A drawn stand-in for the system title bar: the real toolbar and status bar need the live Library,
+    // so they are not drawn here.
+    let titleBar = ZStack {
+        Text("Earshot").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Circle().fill(Color(red: 1.0, green: 0.373, blue: 0.341)).frame(width: 12, height: 12)
+            Circle().fill(Color(red: 0.996, green: 0.737, blue: 0.180)).frame(width: 12, height: 12)
+            Circle().fill(Color(red: 0.157, green: 0.784, blue: 0.251)).frame(width: 12, height: 12)
+            Spacer()
+        }
+        .padding(.leading, 12)
+    }
+    .frame(height: 28)
+    .frame(maxWidth: .infinity)
+    .background(Color(nsColor: .windowBackgroundColor))
+    .overlay(alignment: .bottom) { Divider() }
+
+    return AnyView(
+        VStack(spacing: 0) {
+            titleBar
+            HStack(spacing: 0) {
+                sidebar
+                Divider()
+                detail
+            }
+        }
+        .frame(width: 1100, height: 720)
+        .background(Color(nsColor: .windowBackgroundColor)))
+}
+
 @MainActor func scenes() -> [(String, () -> AnyView)] {
     [
         ("kit", { AnyView(
@@ -36,24 +138,12 @@ import AppKit
                 .background(Color(nsColor: .windowBackgroundColor)))
         }),
         ("dictation-on", {
-            UserDefaults.standard.set(true, forKey: DictationPrefs.enabled)
-            UserDefaults.standard.set(true, forKey: DictationPrefs.toggle)
-            DictationDictionary(entries: [
-                .init(heard: "ear shot", write: "Earshot"),
-                .init(heard: "kay eight s", write: "k8s"),
-            ]).save()
+            setUpDictationOn()
             return AnyView(DictationSettingsView(onEnable: {}).padding(24).frame(width: 680)
                 .background(Color(nsColor: .windowBackgroundColor)))
         }),
         ("home", {
-            let now = Date()
-            let items: [HomeItem] = [
-                .init(id: "a", date: now, title: "Weekly sync with the platform team", detail: "42 min · transcribed · summarized", state: .done),
-                .init(id: "b", date: now.addingTimeInterval(-3 * 3600), title: "Call with Priya", detail: "18 min · transcribed", state: .done),
-                .init(id: "c", date: now.addingTimeInterval(-5 * 3600), title: "product-meeting-0910.m4a", detail: "Imported file · 1 h 04 min", state: .working),
-                .init(id: "d", date: now.addingTimeInterval(-86400), title: "Recording 2026-11-05 16:12", detail: "6 min", state: .failed("Could not transcribe: the audio file is empty")),
-                .init(id: "e", date: now.addingTimeInterval(-86400 - 7200), title: "Roadmap review", detail: "55 min · transcribed · summarized", state: .done),
-            ]
+            let items = sampleHomeItems()
             return AnyView(
                 HomeView(items: items, onOpen: { _ in })
                     .overlay(alignment: .bottom) { RecordBar(recordingSince: nil, onRecord: {}, onImport: {}).padding(.bottom, 16) }
@@ -105,11 +195,7 @@ import AppKit
                 .frame(width: 760).background(Color(nsColor: .windowBackgroundColor)))
         }),
         ("topbar-results", {
-            let hits: [SearchHit] = [
-                .destination(id: "shortcut", title: "Shortcut", detail: "Dictation · change the dictation shortcut"),
-                .recording(id: "c", title: "Roadmap review", snippet: "Nothing about dates."),
-                .recording(id: "a", title: "Weekly sync", snippet: "…we talked about the roadmap and the launch date."),
-            ]
+            let hits = sampleHits
             return AnyView(TopBar(title: "Recordings", query: .constant("roadmap"), hits: hits, focusToken: 0, onPick: { _ in })
                 .frame(width: 760, height: 320, alignment: .top).background(Color(nsColor: .windowBackgroundColor)))
         }),
@@ -135,13 +221,7 @@ import AppKit
                 .frame(width: 380, height: 640).background(Color(nsColor: .windowBackgroundColor)))
         }),
         ("notes", {
-            let now = Date()
-            let items: [NoteItem] = [
-                .init(id: "1", date: now, text: "Remind me to check the failing build before the standup and ask Priya about the roadmap slip.", seconds: 9),
-                .init(id: "2", date: now.addingTimeInterval(-5400), text: "Idea for the onboarding screen: show the shortcut first, then the permission, and only then the settings.", seconds: 14),
-                .init(id: "3", date: now.addingTimeInterval(-86400), text: "An idea for this weekend: turn the garage into a workshop, start with the shelving and the workbench.", seconds: 12),
-                .init(id: "4", date: now.addingTimeInterval(-86400 - 3600), text: "Short one.", seconds: 2),
-            ]
+            let items = sampleNoteItems()
             return AnyView(NotesView(items: items, recordingSince: nil, transcribing: false, level: { -30 },
                                      onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 760, height: 640).background(Color(nsColor: .windowBackgroundColor)))
@@ -171,6 +251,24 @@ import AppKit
             return AnyView(NotesView(items: items, recordingSince: now.addingTimeInterval(-5), transcribing: false, level: { -25 },
                                      onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})
                 .frame(width: 380, height: 520).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("window-recordings", {
+            windowShell(section: .recordings, query: "", hits: [], showRecordBar: true,
+                        content: AnyView(HomeView(items: sampleHomeItems(), onOpen: { _ in })))
+        }),
+        ("window-notes", {
+            windowShell(section: .notes, query: "", hits: [], showRecordBar: false,
+                        content: AnyView(NotesView(items: sampleNoteItems(), recordingSince: nil, transcribing: false, level: { -30 },
+                                                   onRecord: {}, onStop: {}, onCopy: { _ in }, onDelete: { _ in }, onClear: {})))
+        }),
+        ("window-dictation", {
+            setUpDictationOn()
+            return windowShell(section: .dictation, query: "", hits: [], showRecordBar: false,
+                               content: AnyView(ScrollView { DictationSettingsView(onEnable: {}).padding(24) }))
+        }),
+        ("window-search", {
+            windowShell(section: .recordings, query: "roadmap", hits: sampleHits, showRecordBar: true,
+                        content: AnyView(HomeView(items: sampleHomeItems(), onOpen: { _ in })))
         }),
     ]
 }
