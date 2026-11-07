@@ -11,6 +11,7 @@ Earshot records your meetings, writes the transcript, labels who spoke and draft
 [Download Earshot](https://github.com/gaberger/earshot/releases/latest) · [Install guide](docs/INSTALL.md) · [User guide](docs/GUIDE.md)
 
 Requires a Mac with Apple silicon and macOS 26.4 or later.
+
 <img src="assets/badges/platform.svg" alt="macOS 26.4+ on Apple silicon">
 <img src="assets/badges/privacy.svg" alt="100% on-device">
 <img src="assets/badges/swift.svg" alt="Swift, SwiftUI">
