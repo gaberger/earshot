@@ -41,15 +41,6 @@ struct HomeView: View {
         items.filter { if case .failed = $0.state { return true } else { return false } }.count
     }
 
-    private var todayCount: Int {
-        items.filter { Calendar.current.isDateInToday($0.date) }.count
-    }
-
-    private var weekCount: Int {
-        let cutoff = Date().addingTimeInterval(-7 * 86400)
-        return items.filter { $0.date >= cutoff }.count
-    }
-
     private var visibleItems: [HomeItem] {
         let base: [HomeItem]
         switch filter {
@@ -75,14 +66,8 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 12) {
-                    statCard("Today", "\(todayCount) \(todayCount == 1 ? "recording" : "recordings")")
-                    statCard("This week", "\(weekCount) \(weekCount == 1 ? "recording" : "recordings")")
-                    statCard("Needs attention", failedCount == 0 ? "None" : "\(failedCount)")
-                }
-
                 HStack(spacing: 8) {
-                    pill("All", selected: filter == .all) { filter = .all }
+                    pill("All · \(items.count)", selected: filter == .all) { filter = .all }
                     if failedCount > 0 {
                         pill("Errors · \(failedCount)", selected: filter == .errors) { filter = .errors }
                     }
@@ -94,14 +79,15 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
                 } else {
-                    VStack(alignment: .leading, spacing: 18) {
-                        ForEach(groups, id: \.day) { group in
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(groups.enumerated()), id: \.element.day) { groupIndex, group in
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(dayTitle(group.day))
-                                    .font(.caption.bold())
-                                    .tracking(0.8)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .tracking(0.6)
                                     .lineLimit(1)
                                     .foregroundStyle(.secondary)
+                                    .padding(.top, groupIndex > 0 ? 18 : 0)
                                     .padding(.bottom, 4)
                                 ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
                                     if index > 0 { Divider() }
@@ -114,35 +100,29 @@ struct HomeView: View {
             }
             .padding(.horizontal, 28)
             .padding(.top, 24)
-            .padding(.bottom, 120)
+            .padding(.bottom, 130)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .overlay(alignment: .bottom) {
+            LinearGradient(colors: [.clear, Color(nsColor: .windowBackgroundColor)], startPoint: .top, endPoint: .bottom)
+                .frame(height: 110)
+                .allowsHitTesting(false)
         }
         .onChange(of: failedCount) { _, count in
             if count == 0 { filter = .all }
         }
     }
 
-    private func statCard(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-            Text(value).font(.title3.weight(.semibold)).lineLimit(1).truncationMode(.tail)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.accentColor.opacity(0.08)))
-    }
-
     private func pill(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.callout)
+                .font(.callout.weight(selected ? .semibold : .regular))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
-                .foregroundStyle(selected ? Color(nsColor: .windowBackgroundColor) : Color.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(selected ? Color.primary : Color.clear))
-                .overlay(Capsule().strokeBorder(selected ? Color.clear : Color(nsColor: .separatorColor), lineWidth: 1))
+                .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.08)))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -162,15 +142,15 @@ struct HomeView: View {
                     Text(item.title)
                         .font(failed != nil ? .body.weight(.semibold) : .body)
                         .foregroundStyle(failed != nil ? Color.orange : Color.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .truncationMode(.tail)
                     Text(item.detail).font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     if let failed {
                         Text(failed).font(.callout).foregroundStyle(Color.orange)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: 8)
