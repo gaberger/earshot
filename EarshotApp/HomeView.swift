@@ -157,7 +157,15 @@ struct HomeView: View {
                 }
                 Spacer(minLength: 8)
                 if item.state == .working {
-                    ProgressView().controlSize(.small)
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Transcribing…")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
                 }
             }
             .padding(.vertical, 10)
