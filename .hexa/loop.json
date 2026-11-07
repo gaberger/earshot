@@ -103,7 +103,7 @@
       ],
       "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
       "last_run": {
-        "at": "2026-11-07T02:54:12.116674+00:00",
+        "at": "2026-11-07T03:01:39.214548+00:00",
         "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift RecordingViews.swift AppNav.swift ChromeViews.swift SearchIndex.swift DictationSettingsView.swift",
         "stage": "build"
       },
@@ -153,7 +153,7 @@
           "title": "Sidebar footer (Settings, Help) and a top search bar with ⌘K"
         }
       ],
-      "updated": "2026-11-07T02:58:29.360044+00:00"
+      "updated": "2026-11-07T03:01:39.214560+00:00"
     },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
