@@ -1115,7 +1115,7 @@ struct SettingsView: View {
                     }
                 Text("Press \(hotKey.display) to dictate, speak, and let go (or tap again, in tap mode). Earshot types what you said into the app you are in. "
                      + "A small Listening… indicator shows while it hears you. "
-                     + "Needs Microphone and Accessibility access. Nothing is typed into password fields, and the audio is not kept.")
+                     + "Needs Microphone and Accessibility access. Nothing is typed into password fields, and the audio is not kept, except a clip that could not be transcribed, which stays in a private temporary file until your next dictation so you can retry it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 LabeledContent("Shortcut") {
@@ -1443,6 +1443,22 @@ struct MenuBarLabel: View {
     }
 }
 
+/// Offers to try again when a dictation clip could not be transcribed.
+struct RetryDictationRow: View {
+    @ObservedObject var dictation: DictationService
+
+    var body: some View {
+        if dictation.retryAvailable {
+            Button {
+                dictation.retryLast()
+            } label: {
+                Label("Retry last dictation", systemImage: "arrow.counterclockwise")
+            }
+            .controlSize(.small)
+        }
+    }
+}
+
 /// The panel that opens from the menu bar.
 struct MenuBarPanel: View {
     @ObservedObject var lib: Library
@@ -1476,6 +1492,7 @@ struct MenuBarPanel: View {
             .buttonStyle(.borderedProminent)
             .tint(lib.recording ? .red : .accentColor)
             .controlSize(.large)
+            RetryDictationRow(dictation: lib.dictation)
 
             if lib.recording {
                 VStack(alignment: .leading, spacing: 6) {
