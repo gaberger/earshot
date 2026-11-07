@@ -28,6 +28,7 @@ struct EarshotApp: App {
                 .frame(minWidth: 1180, minHeight: 560)
                 // Files opened from Finder ("Open With", or dropped on the Dock icon).
                 .onOpenURL { library.importFile($0) }
+                .tint(Color.brandAccent)
         }
         .windowResizability(.contentMinSize)
         .handlesExternalEvents(matching: ["*"])
@@ -55,6 +56,7 @@ struct EarshotApp: App {
 
         Window("How Earshot Works", id: HelpView.windowID) {
             HelpView()
+                .tint(Color.brandAccent)
         }
         .defaultSize(width: 640, height: 720)
 
@@ -1072,7 +1074,7 @@ struct SettingsView: View {
                 if chosenMissing {
                     Label("This microphone isn't connected. Recordings use the system default until it is.",
                           systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.brandWarningText)
                 }
                 Picker("Stop when quiet", selection: $autoStopMinutes) {
                     Text("Never").tag(0)
@@ -1089,7 +1091,7 @@ struct SettingsView: View {
                 if let loginNotice {
                     HStack {
                         Label(loginNotice, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.brandWarningText)
                         if loginStatus == .requiresApproval {
                             Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
                         }
@@ -1163,7 +1165,7 @@ struct LevelBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.quaternary)
                 Capsule()
-                    .fill(fill > 0.9 ? Color.red : fill > 0.7 ? Color.orange : Color.green)
+                    .fill(fill > 0.9 ? Color.red : fill > 0.7 ? Color.brandWarning : Color.green)
                     .frame(width: geo.size.width * fill)
             }
         }
@@ -1441,7 +1443,7 @@ struct MenuBarPanel: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(lib.recording ? .red : .accentColor)
+            .tint(lib.recording ? Color.red : Color.brandAccent)
             .controlSize(.large)
             RetryDictationRow(dictation: lib.dictation)
 
@@ -1456,7 +1458,7 @@ struct MenuBarPanel: View {
                     if let s = lib.endingIn {
                         Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.brandWarningText)
                         Button("Keep recording") { lib.keepRecording() }
                             .controlSize(.small)
                     }
@@ -2197,7 +2199,7 @@ struct ContentView: View {
         .overlay {
             if dropTargeted {
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .strokeBorder(Color.brandAccent, lineWidth: 3)
                     .allowsHitTesting(false)
             }
         }
@@ -2277,7 +2279,7 @@ struct RecordingDetail: View {
 
             if let error = lib.errors[rec.id] {
                 Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.brandWarningText)
                     .textSelection(.enabled)
             }
 
@@ -2354,7 +2356,7 @@ struct RecordingDetail: View {
                               systemImage: lib.editingSummary ? "checkmark" : "pencil")
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(lib.editingSummary ? .accentColor : .secondary)
+                    .tint(lib.editingSummary ? Color.brandAccent : Color.secondary)
                     .disabled(lib.summary.isEmpty)
                     .help(lib.editingSummary ? "Finish editing. Your changes are already saved."
                                              : "Correct the summary by hand: names, numbers, anything the model got wrong.")
@@ -2506,7 +2508,7 @@ struct SpeakerBar: View {
     }
 
     static func color(_ index: Int) -> Color {
-        [Color.blue, .orange, .green, .purple, .pink, .teal, .yellow, .red][index % 8]
+        [Color.blue, .orange, .green, .purple, .pink, .teal, .yellow, .red][index % 8] // brand-ok: speaker palette
     }
 }
 

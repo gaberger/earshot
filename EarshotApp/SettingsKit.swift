@@ -86,7 +86,7 @@ struct SettingsBanner: View {
     private func actionButton(_ title: String, _ action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .buttonStyle(.borderedProminent)
-            .tint(.orange)
+            .tint(Color.brandWarningText)
             .controlSize(.small)
     }
 
@@ -112,11 +112,11 @@ struct SettingsBanner: View {
                 }
             }
         }
-        .foregroundStyle(Color.orange)
+        .foregroundStyle(Color.brandWarningText)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12))
+        .background(Color.brandWarning.opacity(0.12))
     }
 }
 

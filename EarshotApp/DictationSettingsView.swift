@@ -33,7 +33,7 @@ struct HotKeyRecorder: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(listening ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: 1)
+                    .strokeBorder(listening ? Color.brandAccent : Color(nsColor: .separatorColor), lineWidth: 1)
             )
         }
         .onDisappear { stop() }

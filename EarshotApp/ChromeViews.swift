@@ -160,12 +160,12 @@ struct SidebarFooter: View {
                 Spacer(minLength: 0)
                 if let hint { KeyHint(hint) }
             }
-            .foregroundStyle(selected ? Color.accentColor : Color.primary)
+            .foregroundStyle(selected ? Color.brandAccentText : Color.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 10)
-                .fill(selected ? Color.accentColor.opacity(0.18) : Color.clear))
+                .fill(selected ? Color.brandAccent.opacity(0.18) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

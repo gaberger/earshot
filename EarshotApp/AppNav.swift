@@ -42,12 +42,12 @@ struct SidebarNav: View {
                         Text(section.title).font(.body.weight(.medium))
                         Spacer(minLength: 0)
                     }
-                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                    .foregroundStyle(selected ? Color.brandAccentText : Color.primary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 10)
-                        .fill(selected ? Color.accentColor.opacity(0.18) : Color.clear))
+                        .fill(selected ? Color.brandAccent.opacity(0.18) : Color.clear))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

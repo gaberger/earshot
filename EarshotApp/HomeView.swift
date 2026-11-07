@@ -119,10 +119,10 @@ struct HomeView: View {
                 .font(.callout.weight(selected ? .semibold : .regular))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
-                .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                .foregroundStyle(selected ? Color.brandAccentText : Color.primary)
                 .padding(.horizontal, 12)
                 .frame(height: 28)
-                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.08)))
+                .background(Capsule().fill(selected ? Color.brandAccent.opacity(0.22) : Color.primary.opacity(0.08)))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -143,14 +143,14 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.title)
                         .font(failed != nil ? .body.weight(.semibold) : .body)
-                        .foregroundStyle(failed != nil ? Color.orange : Color.primary)
+                        .foregroundStyle(failed != nil ? Color.brandWarningText : Color.primary)
                         .lineLimit(2)
                         .truncationMode(.tail)
                     Text(item.detail).font(.caption).foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     if let failed {
-                        Text(failed).font(.callout).foregroundStyle(Color.orange)
+                        Text(failed).font(.callout).foregroundStyle(Color.brandWarningText)
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }

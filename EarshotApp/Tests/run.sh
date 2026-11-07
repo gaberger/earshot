@@ -58,3 +58,8 @@ bash Tests/help-check.sh
 # PasteGuardTests also uses @main and fails itself if fewer than 22 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library PasteGuard.swift Tests/PasteGuardTests.swift -o "$out/paste-guard-tests"
 "$out/paste-guard-tests"
+# BrandTests also uses @main and fails itself if fewer than 23 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Brand.swift Tests/BrandTests.swift -o "$out/brand-tests"
+"$out/brand-tests"
+# The views use the brand tokens, the root tint is set, and the icon follows concept B (ADR-2611072000).
+bash Tests/brand-check.sh

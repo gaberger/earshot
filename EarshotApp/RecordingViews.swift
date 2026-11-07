@@ -132,7 +132,7 @@ struct RecordingScreen: View {
                     .foregroundStyle(.secondary)
                 if let n = endingIn {
                     HStack(spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.brandWarning)
                         Text("No one has spoken for a while. Stopping in \(n) s")
                             .font(.callout)
                         Spacer(minLength: 8)
@@ -142,7 +142,7 @@ struct RecordingScreen: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.brandWarning.opacity(0.12)))
                 }
             }
             .padding(20)
