@@ -88,7 +88,33 @@ check("extensionless file in dotted dir keeps its dir", got == "rec.d/audio", (g
 got, r = output_base("rec.d/talk.mp3")
 check("extension is still stripped in dotted dir", got == "rec.d/talk", (got, r.stderr))
 
-MIN_CHECKS = 7
+# One unreadable input must not abort the batch: later files are still transcribed, exit is non-zero.
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    (d / "models").mkdir()
+    (d / "models" / "ggml-large-v3-turbo.bin").write_text("x")
+    (d / "bin").mkdir()
+    done = d / "done.log"
+    stubs = {"ffmpeg": 'case "$*" in *bad.mp3*) echo corrupt >&2; exit 1;; esac; exit 0',
+             "whisper-cli": 'while [ $# -gt 0 ]; do [ "$1" = -of ] && echo "$2" >> "%s"; shift; done' % done}
+    for name, body in stubs.items():
+        p = d / "bin" / name
+        p.write_text("#!/bin/sh\n" + body + "\n")
+        p.chmod(0o755)
+    files = []
+    for n in ("a.mp3", "bad.mp3", "c.mp3"):
+        (d / n).write_text("x")
+        files.append(str(d / n))
+    env = dict(os.environ, PATH=f"{d / 'bin'}:/usr/bin:/bin", HOME=str(d),
+               WHISPER_MODEL_DIR=str(d / "models"))
+    r = subprocess.run(["bash", SCRIPT, *files], env=env, capture_output=True, text=True, timeout=30)
+    got = done.read_text().split() if done.exists() else []
+    check("bad file does not stop later files", str(d / "c") in got, (got, r.stderr))
+    check("earlier files still transcribed", str(d / "a") in got, (got, r.stderr))
+    check("batch with a bad file exits non-zero", r.returncode != 0, r.returncode)
+    check("bad file is named on stderr", "bad.mp3" in r.stderr, r.stderr)
+
+MIN_CHECKS = 11
 if checks < MIN_CHECKS:
     print(f"FAIL: only {checks} checks ran, need {MIN_CHECKS}")
     sys.exit(1)
