@@ -16,6 +16,7 @@ import UserNotifications
 @main
 struct EarshotApp: App {
     @StateObject private var library = Library()
+    @StateObject private var nav = Navigator()
 
     init() {
         Prefs.migrate()
@@ -23,10 +24,11 @@ struct EarshotApp: App {
 
     var body: some Scene {
         WindowGroup(id: MainWindow.id) {
-            ContentView(lib: library)
+            ContentView(lib: library, nav: nav)
                 .frame(minWidth: 1180, minHeight: 560)
                 // Files opened from Finder ("Open With", or dropped on the Dock icon).
                 .onOpenURL { library.importFile($0) }
+                .tint(Color.brandAccent)
         }
         .windowResizability(.contentMinSize)
         .handlesExternalEvents(matching: ["*"])
@@ -38,24 +40,67 @@ struct EarshotApp: App {
                 }
             }
             CommandGroup(replacing: .help) { HelpMenuItem() }
+            CommandGroup(replacing: .appSettings) { SettingsCommand(nav: nav) }
+            CommandGroup(after: .textEditing) {
+                Button("Search") { nav.focusSearch += 1 }
+                    .keyboardShortcut("k", modifiers: .command)
+            }
+            CommandGroup(after: .newItem) {
+                RecordCommands(lib: library)
+            }
+            CommandGroup(after: .pasteboard) {
+                Button("Copy Current Tab") { library.copyCurrentTab() }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
         }
 
         Window("How Earshot Works", id: HelpView.windowID) {
             HelpView()
+                .tint(Color.brandAccent)
         }
         .defaultSize(width: 640, height: 720)
 
-        Settings {
-            SettingsView()
-        }
-
         // Quick access from the menu bar, like Plaud: record, see the timer, open recent recordings.
         MenuBarExtra {
-            MenuBarPanel(lib: library)
+            MenuBarPanel(lib: library, nav: nav)
         } label: {
             MenuBarLabel(lib: library)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Which page the main window shows, shared with the menu bar and the menu commands.
+final class Navigator: ObservableObject {
+    @Published var section: AppSection = .recordings
+    @Published var focusSearch = 0
+}
+
+/// The Settings… menu item: Settings is a page in the main window.
+struct SettingsCommand: View {
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject var nav: Navigator
+
+    var body: some View {
+        Button("Settings…") {
+            nav.section = .settings
+            openWindow(id: MainWindow.id)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        .keyboardShortcut(",", modifiers: .command)
+    }
+}
+
+/// File-menu Record and Import items; observes the library so the title follows the recording state.
+struct RecordCommands: View {
+    @ObservedObject var lib: Library
+
+    var body: some View {
+        Button(lib.recording ? "Stop Recording" : "Record") { lib.toggleRecording() }
+            .keyboardShortcut("r", modifiers: .command)
+        Button("Import…") { lib.chooseFile() }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(lib.recording)
     }
 }
 
@@ -194,6 +239,9 @@ final class Library: ObservableObject {
     // True while waiting for the microphone permission answer, so a second click can't start a second recorder.
     private var starting = false
     private var savedTranscript = ""
+    let dictation = DictationService()
+    let notes = NotesStore()
+    let noteRecorder = NoteRecorder()
 
     init() {
         dir = home.appendingPathComponent("Recordings/whisper")
@@ -206,6 +254,31 @@ final class Library: ObservableObject {
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recorder?.stop() }
+        }
+        dictation.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
+        dictation.speakScriptPath = { [weak self] in self?.bin("earshot-speak") ?? "" }
+        dictation.runHelper = { await Library.run($0) }
+        dictation.log = { [weak self] in self?.log($0) }
+        dictation.tidy = { text in
+            let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+            guard case .available = model.availability else { return nil }
+            let session = LanguageModelSession(model: model, instructions: DictationCleanup.instructions)
+            return try? await session.respond(to: text).content
+        }
+        dictation.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
+        noteRecorder.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        noteRecorder.isDictationBusy = { [weak self] in self?.dictation.isBusy ?? false }
+        noteRecorder.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
+        noteRecorder.runHelper = { await Library.run($0) }
+        noteRecorder.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
+        noteRecorder.log = { [weak self] in self?.log($0) }
+        noteRecorder.onNotice = { [weak self] in self?.notice = $0 }
+        noteRecorder.onSaved = { [weak self] text, secs in self?.notes.add(text: text, seconds: secs) }
+        dictation.refresh()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.dictation.refresh() }
         }
         callNotifier.onRecord = { [weak self] in
             guard let self, !self.recording else { return }
@@ -284,6 +357,7 @@ final class Library: ObservableObject {
 
     private func startRecording() {
         guard !starting else { return }
+        noteRecorder.stop()
         starting = true
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             Task { @MainActor in
@@ -498,7 +572,7 @@ final class Library: ObservableObject {
     }
 
     /// A helper script: the copy inside the app (so a DMG install works on its own), else ~/.local/bin.
-    private func bin(_ name: String) -> String {
+    func bin(_ name: String) -> String {
         if let bundled = Bundle.main.url(forResource: name, withExtension: nil),
            FileManager.default.isExecutableFile(atPath: bundled.path) {
             return bundled.path
@@ -507,7 +581,7 @@ final class Library: ObservableObject {
     }
 
     /// Runs a helper script off the main thread. Returns nil on success, or the last lines of its error output.
-    nonisolated private static func run(_ args: [String]) async -> String? {
+    nonisolated static func run(_ args: [String]) async -> String? {
         await Task.detached {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -957,8 +1031,23 @@ struct SettingsView: View {
     @AppStorage(Prefs.summaryTemplate) private var summaryTemplate = SummaryTemplate.all[0].id
     @AppStorage(Prefs.offerOnCall) private var offerOnCall = true
     @State private var inputs: [AVCaptureDevice] = []
-    @State private var openAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginStatus = SMAppService.mainApp.status
     @State private var loginNotice: String?
+
+    /// On means registered, whether or not macOS still wants the user to approve it in Login Items.
+    private var openAtLogin: Bool { loginStatus == .enabled || loginStatus == .requiresApproval }
+
+    private func refreshLogin() {
+        loginStatus = SMAppService.mainApp.status
+        switch loginStatus {
+        case .requiresApproval:
+            loginNotice = "macOS needs you to allow Earshot in System Settings → General → Login Items."
+        case .notFound:
+            loginNotice = "macOS can't find Earshot as a login item. Move Earshot to your Applications folder and try again."
+        default:
+            if loginNotice?.hasPrefix("Couldn't") != true { loginNotice = nil }
+        }
+    }
 
     private func setOpenAtLogin(_ on: Bool) {
         do {
@@ -967,7 +1056,7 @@ struct SettingsView: View {
         } catch {
             loginNotice = "Couldn't change Open at login: \(error.localizedDescription)"
         }
-        openAtLogin = SMAppService.mainApp.status == .enabled
+        refreshLogin()
     }
 
     private var defaultName: String { AVCaptureDevice.default(for: .audio)?.localizedName ?? "none" }
@@ -985,7 +1074,7 @@ struct SettingsView: View {
                 if chosenMissing {
                     Label("This microphone isn't connected. Recordings use the system default until it is.",
                           systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.brandWarningText)
                 }
                 Picker("Stop when quiet", selection: $autoStopMinutes) {
                     Text("Never").tag(0)
@@ -1000,8 +1089,13 @@ struct SettingsView: View {
                     get: { openAtLogin },
                     set: { setOpenAtLogin($0) }))
                 if let loginNotice {
-                    Label(loginNotice, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    HStack {
+                        Label(loginNotice, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(Color.brandWarningText)
+                        if loginStatus == .requiresApproval {
+                            Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                        }
+                    }
                 }
             } header: {
                 Text("Recording")
@@ -1047,9 +1141,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
-        .onAppear { inputs = MicRecorder.inputs() }
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+        .onAppear { inputs = MicRecorder.inputs(); refreshLogin() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refreshLogin() }
         .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
             inputs = MicRecorder.inputs()
         }
@@ -1070,7 +1165,7 @@ struct LevelBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.quaternary)
                 Capsule()
-                    .fill(fill > 0.9 ? Color.red : fill > 0.7 ? Color.orange : Color.green)
+                    .fill(fill > 0.9 ? Color.red : fill > 0.7 ? Color.brandWarning : Color.green)
                     .frame(width: geo.size.width * fill)
             }
         }
@@ -1300,9 +1395,26 @@ struct MenuBarLabel: View {
     }
 }
 
+/// Offers to try again when a dictation clip could not be transcribed.
+struct RetryDictationRow: View {
+    @ObservedObject var dictation: DictationService
+
+    var body: some View {
+        if dictation.retryAvailable {
+            Button {
+                dictation.retryLast()
+            } label: {
+                Label("Retry last dictation", systemImage: "arrow.counterclockwise")
+            }
+            .controlSize(.small)
+        }
+    }
+}
+
 /// The panel that opens from the menu bar.
 struct MenuBarPanel: View {
     @ObservedObject var lib: Library
+    @ObservedObject var nav: Navigator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -1331,8 +1443,9 @@ struct MenuBarPanel: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(lib.recording ? .red : .accentColor)
+            .tint(lib.recording ? Color.red : Color.brandAccent)
             .controlSize(.large)
+            RetryDictationRow(dictation: lib.dictation)
 
             if lib.recording {
                 VStack(alignment: .leading, spacing: 6) {
@@ -1345,7 +1458,7 @@ struct MenuBarPanel: View {
                     if let s = lib.endingIn {
                         Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.brandWarningText)
                         Button("Keep recording") { lib.keepRecording() }
                             .controlSize(.small)
                     }
@@ -1373,7 +1486,7 @@ struct MenuBarPanel: View {
             HStack {
                 Button("Open Earshot") { open(nil) }
                 Spacer()
-                SettingsLink { Text("Settings…") }
+                Button("Settings…") { openSettings() }
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
@@ -1384,6 +1497,12 @@ struct MenuBarPanel: View {
         }
         .padding(14)
         .frame(width: 300)
+    }
+
+    private func openSettings() {
+        nav.section = .settings
+        openWindow(id: MainWindow.id)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func open(_ id: Recording.ID?) {
@@ -1400,18 +1519,6 @@ struct MenuBarPanel: View {
             openWindow(id: MainWindow.id)
         }
         NSApp.activate()
-    }
-}
-
-struct HelpButton: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button { openWindow(id: HelpView.windowID) } label: {
-            Label("Privacy", systemImage: "lock.shield")
-        }
-        .labelStyle(.titleAndIcon)
-        .help("How Earshot works, and why everything stays on this Mac (⌘?).")
     }
 }
 
@@ -1498,6 +1605,47 @@ struct HelpView: View {
                          + "summarizing. When it is idle, how many recordings you have.")
                     item("CPU · GPU · MEM", "How hard the Mac is working. CPU and memory count this app and Whisper. "
                          + "GPU counts the whole graphics chip, where Whisper and the summary model do most of their work.")
+                }
+
+                section("Dictation", "keyboard") {
+                    item("Dictate into any app", "Off until you turn it on in Settings, Dictation. Hold the shortcut "
+                         + "(Control, Option, Space unless you change it), speak, and let go: Earshot types what you "
+                         + "said into the app in front. It needs Microphone and Accessibility permission.")
+                    item("Tap to start, tap to stop", "An alternative to holding the keys, in Settings, Dictation, Mode.")
+                    item("Fix words it mishears", "In Settings, Dictation, Corrections, write one per line as: "
+                         + "ear shot => Earshot. Whole words only, ignoring case.")
+                    item("Tidy up what I say", "Optional, off by default. Removes ums and fixes punctuation using "
+                         + "Apple's on-device model, so the text stays on this Mac. It can reword slightly, and if "
+                         + "the model is unavailable the original words are typed.")
+                    item("Highlight the window", "A little fire around the window your words will be typed into while "
+                         + "you dictate. It only reads the window position and size. With Reduce Motion on, it is a "
+                         + "plain glowing border. Turn it off in Settings, Dictation.")
+                    item("Press Return after typing", "Off by default. Presses Return once after the text is typed, "
+                         + "so a chat message sends or a form submits. It does nothing for empty text, or when the "
+                         + "text could only be left on the clipboard.")
+                    para("Dictation keeps nothing: no text and no audio is saved, except a clip that could not be "
+                         + "transcribed, which is kept until your next dictation so Retry last dictation in the menu "
+                         + "bar can try again. It never types into password fields, and it is off while a meeting is "
+                         + "being recorded.")
+                }
+
+                section("Notes", "note.text") {
+                    para("Notes is a separate area for your own voice notes. Press Record a note, speak, press Stop. "
+                         + "The note is transcribed on this Mac and saved in the list, grouped by day, with Copy and "
+                         + "Delete on each. Only the text is kept; the audio is deleted at once. Clear all deletes "
+                         + "every note. Nothing is typed into other apps.")
+                }
+
+                section("Agents and spoken replies", "waveform") {
+                    item("MCP server for agents", "scripts/earshot-mcp is a small read-only server that lets an agent "
+                         + "such as Claude Code list your recordings and read their transcripts and summaries. It opens "
+                         + "no port and uses no network. Connecting an agent means that agent receives the text it asks "
+                         + "for and may send it to its own provider, which is outside the promise that everything "
+                         + "stays on this Mac.")
+                    item("Hear spoken replies", "scripts/earshot-speak says a short version of each Claude Code reply "
+                         + "out loud using the macOS say command, entirely on this Mac. It is off until you run "
+                         + "earshot-speak on, and it speaks only for the session you ran it from. earshot-speak off "
+                         + "turns it off. Pressing the dictation hotkey stops the voice so you can talk over it.")
                 }
 
                 section("Good to know", "info.circle") {
@@ -1813,32 +1961,194 @@ enum Summarizer {
 
 // MARK: - Views
 
+struct NotesPage: View {
+    @ObservedObject var store: NotesStore
+    @ObservedObject var recorder: NoteRecorder
+
+    var body: some View {
+        NotesView(items: store.items, recordingSince: recorder.recordingSince,
+                  transcribing: recorder.transcribing, level: { recorder.level },
+                  onRecord: { recorder.start() }, onStop: { recorder.stop() },
+                  onCopy: { text in
+                      NSPasteboard.general.clearContents()
+                      NSPasteboard.general.setString(text, forType: .string)
+                  },
+                  onDelete: { store.remove(id: $0) },
+                  onClear: { store.clear() })
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var lib: Library
+    @ObservedObject var nav: Navigator
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var monitor = ResourceMonitor()
     @State private var dropTargeted = false
     @State private var newName = ""
+    @State private var query = ""
+    @State private var searchTexts: [String: String] = [:]
+
+    private static let destinations: [SearchDestination] = [
+        SearchDestination(id: "shortcut", title: "Shortcut", detail: "Dictation · change the dictation shortcut", keywords: ["hotkey", "keys", "press"]),
+        SearchDestination(id: "mode", title: "Mode", detail: "Dictation · hold to talk or tap to start and stop", keywords: ["hold", "tap", "toggle"]),
+        SearchDestination(id: "corrections", title: "Corrections", detail: "Dictation · fix words it mishears", keywords: ["dictionary", "words", "spelling", "replace"]),
+        SearchDestination(id: "accessibility", title: "Accessibility permission", detail: "Dictation · allow Earshot to type for you", keywords: ["permission", "privacy"]),
+        SearchDestination(id: "microphone", title: "Microphone", detail: "Settings · choose what Earshot records from", keywords: ["input", "mic"]),
+        SearchDestination(id: "autostop", title: "Stop recording automatically", detail: "Settings · stop after silence", keywords: ["silence", "auto", "stop"]),
+        SearchDestination(id: "speakers", title: "Speakers", detail: "Settings · identify who spoke", keywords: ["diarization", "names"]),
+        SearchDestination(id: "noteslog", title: "Notes", detail: "Notes · record a voice note", keywords: ["notes", "record", "voice", "memo"]),
+        SearchDestination(id: "login", title: "Open at login", detail: "Settings · start Earshot when you log in", keywords: ["startup", "launch"]),
+    ]
+
+    private var hits: [SearchHit] {
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+        let docs = lib.items.map { SearchDoc(id: $0.id, title: $0.title, text: searchTexts[$0.id] ?? "") }
+        let noteDocs = lib.notes.items.map { item -> SearchDoc in
+            let oneLine = item.text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            return SearchDoc(id: item.id, title: String(oneLine.prefix(60)), text: item.text)
+        }
+        return SearchIndex.search(query, recordings: docs, destinations: Self.destinations, notes: noteDocs)
+    }
+
+    private func pick(_ hit: SearchHit) {
+        switch hit {
+        case let .recording(id, _, _):
+            nav.section = .recordings
+            lib.selection = id
+        case .note:
+            nav.section = .notes
+        case let .destination(id, _, _):
+            if id == "noteslog" {
+                nav.section = .notes
+            } else {
+                nav.section = ["shortcut", "mode", "corrections", "accessibility"].contains(id) ? .dictation : .settings
+            }
+        }
+        query = ""
+    }
+
+    private func loadSearchTexts() async {
+        let urls = lib.items.map { ($0.id, $0.transcriptURL) }
+        let loaded = await Task.detached(priority: .utility) { () -> [String: String] in
+            var out: [String: String] = [:]
+            for (id, url) in urls {
+                if let text = try? String(contentsOf: url, encoding: .utf8) {
+                    out[id] = String(text.prefix(20000))
+                }
+            }
+            return out
+        }.value
+        searchTexts = loaded
+    }
+
+    private var homeItems: [HomeItem] {
+        lib.items.map { r in
+            let parts = [r.hasTranscript ? "transcribed" : nil, r.hasSummary ? "summarized" : nil].compactMap { $0 }
+            let state: HomeItem.State
+            if lib.transcribing.contains(r.id) {
+                state = .working
+            } else if let message = lib.errors[r.id] {
+                state = .failed(message)
+            } else {
+                state = .done
+            }
+            return HomeItem(id: r.id, date: r.date, title: r.title,
+                            detail: parts.isEmpty ? "Not transcribed yet" : parts.joined(separator: " · "),
+                            state: state)
+        }
+    }
+
+    private var recordingsHome: some View {
+        var home = HomeView(items: homeItems, onOpen: { lib.selection = $0 })
+        home.rowMenu = { item in
+            AnyView(Group {
+                if let r = lib.items.first(where: { $0.id == item.id }) {
+                    Button("Rename…") { lib.renaming = r.id }
+                    Button("Show in Finder") { lib.showInFinder(r) }
+                    Button("Transcribe Again") { lib.transcribe(r.id) }
+                    Button("Find Speakers Again") { lib.findSpeakers(r.id) }.disabled(!r.hasTranscript)
+                    Button("Summarize Again") { lib.summarize(r.id) }.disabled(!r.hasTranscript)
+                    Divider()
+                    Button("Move to Trash", role: .destructive) { lib.moveToTrash(r) }
+                }
+            })
+        }
+        return home
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        if nav.section == .settings {
+            ScrollView {
+                VStack(spacing: 0) {
+                    DictationSettingsView(onEnable: { DictationService.requestPermissions() },
+                                          onResetPermission: { DictationService.resetAccessibilityPermission() })
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                    SettingsView()
+                }
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
+            }
+        } else if nav.section == .dictation {
+            DictationPage(onEnable: { DictationService.requestPermissions() },
+                          onResetPermission: { DictationService.resetAccessibilityPermission() })
+        } else if nav.section == .notes {
+            NotesPage(store: lib.notes, recorder: lib.noteRecorder)
+        } else if lib.recording, let start = lib.startedAt {
+            RecordingNow(lib: lib, start: start)
+        } else if let r = lib.selected {
+            VStack(alignment: .leading, spacing: 0) {
+                Button { lib.selection = nil } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text("Recordings")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 20)
+                .padding(.top, 12)
+                RecordingDetail(lib: lib, rec: r)
+            }
+        } else {
+            recordingsHome
+        }
+    }
 
     var body: some View {
         NavigationSplitView {
-            Timeline(lib: lib)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 360)
-        } detail: {
-            Group {
-                if lib.recording, let start = lib.startedAt {
-                    RecordingNow(lib: lib, start: start)
-                } else if let r = lib.selected {
-                    RecordingDetail(lib: lib, rec: r)
-                } else {
-                    ContentUnavailableView {
-                        VStack(spacing: 10) {
-                            AppIcon(size: 96)
-                            Text("Earshot")
-                        }
-                    } description: {
-                        Text("Press Record, or drop an audio or video file here.\nEverything stays on this Mac.")
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    AppIcon(size: 26)
+                    Text("Earshot").font(.headline)
+                    Spacer()
                 }
+                SidebarNav(selection: $nav.section)
+                Spacer()
+                SidebarStatusCard(ready: !lib.recording,
+                                  detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
+                SidebarFooter(settingsSelected: nav.section == .settings,
+                              onSettings: { nav.section = .settings },
+                              onHelp: { openWindow(id: HelpView.windowID) })
+            }
+            .padding(12)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
+        } detail: {
+            VStack(spacing: 0) {
+                TopBar(title: nav.section.title, query: $query, hits: hits,
+                       focusToken: nav.focusSearch, onPick: pick)
+                detailContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .bottom) {
+                        if nav.section == .recordings {
+                            RecordBar(recordingSince: lib.startedAt,
+                                      onRecord: lib.toggleRecording,
+                                      onImport: { if lib.recording { return }; lib.chooseFile() })
+                                .padding(.bottom, 16)
+                        }
+                    }
             }
             .overlay(alignment: .bottom) {
                 if let notice = lib.notice {
@@ -1846,10 +2156,12 @@ struct ContentView: View {
                         .padding(10)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                         .padding()
+                        .padding(.bottom, 90)
                         .onTapGesture { lib.notice = nil }
                 }
             }
         }
+        .task(id: lib.items.map(\.id)) { await loadSearchTexts() }
         .navigationTitle("Earshot")
         .toolbar { HeaderControls(lib: lib) }
         // A status bar along the bottom, as in Finder and Xcode: what's happening, and the meter.
@@ -1880,6 +2192,9 @@ struct ContentView: View {
         } message: {
             Text("You changed this summary by hand. A new summary replaces your changes, and this can't be undone.")
         }
+        .onChange(of: lib.selection) {
+            if lib.selection != nil { nav.section = .recordings }
+        }
         .onChange(of: lib.renaming) {
             newName = lib.items.first { $0.id == lib.renaming }?.title ?? ""
         }
@@ -1890,7 +2205,7 @@ struct ContentView: View {
         .overlay {
             if dropTargeted {
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .strokeBorder(Color.brandAccent, lineWidth: 3)
                     .allowsHitTesting(false)
             }
         }
@@ -1902,47 +2217,8 @@ struct HeaderControls: ToolbarContent {
     @ObservedObject var lib: Library
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            HelpButton()
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            SettingsLink {
-                Label("Settings", systemImage: "gearshape")
-            }
-            .labelStyle(.titleAndIcon)
-            .help("Choose which microphone to record from (⌘,).")
-        }
-
-        ToolbarItem(placement: .navigation) {
-            Button(action: lib.toggleRecording) {
-                if let start = lib.startedAt {
-                    // Elapsed time on the button makes it obvious the mic is still live.
-                    TimelineView(.periodic(from: start, by: 1)) { ctx in
-                        Label("Stop  " + elapsed(from: start, to: ctx.date), systemImage: "stop.circle.fill")
-                            .monospacedDigit()
-                    }
-                } else {
-                    Label("Record", systemImage: "mic.circle.fill")
-                }
-            }
-            .labelStyle(.titleAndIcon)
-            .buttonStyle(.borderedProminent)
-            .tint(lib.recording ? .red : .accentColor)
-            .keyboardShortcut("r", modifiers: .command)
-            .help(lib.recording ? "Stop recording and transcribe (⌘R)" : "Record from the microphone (⌘R)")
-        }
-
         // Icons plus words, so nobody has to guess what a symbol means.
         ToolbarItemGroup(placement: .primaryAction) {
-            Button(action: lib.chooseFile) {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            .labelStyle(.titleAndIcon)
-            .keyboardShortcut("o", modifiers: .command)
-            .disabled(lib.recording)
-            .help("Import an audio or video file and transcribe it (⌘O). You can also drag files into the window.")
-
             Toggle(isOn: $lib.translate) {
                 Label(lib.translate ? "Translate: On" : "Translate: Off", systemImage: "globe")
             }
@@ -1952,32 +2228,6 @@ struct HeaderControls: ToolbarContent {
                 Translate to English. When on, speech in another language is written out in English. \
                 When off, the text stays in the language that was spoken. Applies to the next transcription.
                 """)
-
-            Button {
-                if let id = lib.selection { lib.summarize(id) }
-            } label: {
-                Label("Summarize", systemImage: "sparkles")
-            }
-            .labelStyle(.titleAndIcon)
-            .disabled(lib.selected?.hasTranscript != true || lib.selection.map(lib.summarizing.contains) == true)
-            .help("Write a new summary of the selected recording with Apple's on-device model. Nothing leaves this Mac.")
-
-            Button(action: lib.copyCurrentTab) {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            .labelStyle(.titleAndIcon)
-            .keyboardShortcut("c", modifiers: [.command, .shift])
-            .disabled(lib.selected == nil)
-            .help("Copy the text of the open tab, transcript or summary, to the clipboard (⇧⌘C).")
-
-            Button {
-                if let r = lib.selected { lib.showInFinder(r) }
-            } label: {
-                Label("Finder", systemImage: "folder")
-            }
-            .labelStyle(.titleAndIcon)
-            .disabled(lib.selected == nil)
-            .help("Show this recording's files (audio, transcript, summary) in Finder.")
         }
     }
 }
@@ -1989,150 +2239,16 @@ func elapsed(from start: Date, to now: Date) -> String {
         : String(format: "%d:%02d", s / 60, s % 60)
 }
 
-/// The sidebar: every recording, newest first, grouped by day.
-struct Timeline: View {
-    @ObservedObject var lib: Library
-
-    private var days: [(day: Date, items: [Recording])] {
-        Dictionary(grouping: lib.items) { Calendar.current.startOfDay(for: $0.date) }
-            .map { ($0.key, $0.value) }
-            .sorted { $0.day > $1.day }
-    }
-
-    var body: some View {
-        List(selection: $lib.selection) {
-            ForEach(days, id: \.day) { group in
-                Section(dayName(group.day)) {
-                    ForEach(group.items) { r in
-                        TimelineRow(lib: lib, rec: r)
-                            .tag(r.id)
-                            .contextMenu {
-                                Button("Rename…") { lib.renaming = r.id }
-                                Button("Show in Finder") { lib.showInFinder(r) }
-                                Button("Transcribe Again") { lib.transcribe(r.id) }
-                                Button("Find Speakers Again") { lib.findSpeakers(r.id) }.disabled(!r.hasTranscript)
-                                Button("Summarize Again") { lib.summarize(r.id) }.disabled(!r.hasTranscript)
-                                Divider()
-                                Button("Move to Trash", role: .destructive) { lib.moveToTrash(r) }
-                            }
-                    }
-                }
-            }
-        }
-        .onDeleteCommand { if let r = lib.selected { lib.moveToTrash(r) } }
-        // One quiet brand mark at the top of the sidebar, as many Mac apps do.
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 8) {
-                AppIcon(size: 26)
-                Text("Earshot").font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-        }
-        .overlay {
-            if lib.items.isEmpty {
-                ContentUnavailableView("No recordings yet", systemImage: "mic",
-                                       description: Text("Press Record to start."))
-            }
-        }
-    }
-
-    private func dayName(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return "Today" }
-        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
-        return day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
-    }
-}
-
-struct TimelineRow: View {
-    @ObservedObject var lib: Library
-    let rec: Recording
-    @State private var duration: Double?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(rec.title).lineLimit(1)
-            HStack(spacing: 6) {
-                Text(rec.date.formatted(date: .omitted, time: .shortened))
-                if let duration { Text("· " + elapsed(from: .distantPast, to: Date.distantPast + duration)) }
-                Spacer()
-                status
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 3)
-        .task(id: rec.id) {
-            if let d = try? await AVURLAsset(url: rec.audio).load(.duration), d.seconds.isFinite {
-                duration = d.seconds
-            }
-        }
-    }
-
-    @ViewBuilder private var status: some View {
-        if lib.transcribing.contains(rec.id) {
-            ProgressView().controlSize(.mini).help("Transcribing")
-        } else if lib.findingSpeakers.contains(rec.id) {
-            Image(systemName: "person.2.wave.2").symbolEffect(.pulse).help("Finding speakers")
-        } else if lib.summarizing.contains(rec.id) {
-            Image(systemName: "sparkles").symbolEffect(.pulse).help("Summarizing")
-        } else if lib.errors[rec.id] != nil {
-            Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help("Something went wrong")
-        } else if rec.hasSummary {
-            Image(systemName: "sparkles").help("Transcribed and summarized")
-        } else if rec.hasTranscript {
-            Image(systemName: "text.alignleft").help("Transcribed")
-        }
-    }
-}
-
 /// Shown while the microphone is live, so it is obvious how to stop.
 struct RecordingNow: View {
     @ObservedObject var lib: Library
     let start: Date
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(.red)
-                .symbolEffect(.pulse)
-            TimelineView(.periodic(from: start, by: 1)) { ctx in
-                Text(elapsed(from: start, to: ctx.date))
-                    .font(.system(size: 40, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-            }
-            VStack(spacing: 8) {
-                Label(lib.micName ?? "Microphone", systemImage: "mic.fill")
-                    .font(.callout)
-                TimelineView(.animation(minimumInterval: 0.08)) { _ in
-                    LevelBar(decibels: lib.micLevel())
-                }
-                Text("Wrong microphone? Stop, then choose another in Settings (⌘,).")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            if let s = lib.endingIn {
-                VStack(spacing: 8) {
-                    Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
-                        .foregroundStyle(.orange)
-                    Button("Keep recording") { lib.keepRecording() }
-                        .buttonStyle(.bordered)
-                }
-            } else {
-                Text("Recording. Click Stop when you finish, and the text appears here.")
-                    .foregroundStyle(.secondary)
-            }
-            Button(action: lib.toggleRecording) {
-                Label("Stop", systemImage: "stop.fill").frame(minWidth: 120)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.extraLarge)
-        }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RecordingScreen(start: start, micName: lib.micName ?? "Microphone",
+                        level: { lib.micLevel() }, endingIn: lib.endingIn,
+                        onKeepRecording: { lib.keepRecording() },
+                        onStop: { lib.toggleRecording() })
     }
 }
 
@@ -2144,34 +2260,32 @@ struct RecordingDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(rec.title)
-                        .font(.title2.weight(.semibold))
-                        .lineLimit(2)
-                        .onTapGesture(count: 2) { lib.renaming = rec.id }
-                        .help("Double-click to rename")
-                    Button { lib.renaming = rec.id } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Rename this recording")
-                }
-                Text(rec.date.formatted(date: .complete, time: .shortened))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Picker("View", selection: $lib.tab) {
-                ForEach(Library.Tab.allCases, id: \.self) { Text($0.rawValue) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 280)
+            RecordingHeader(
+                title: rec.title,
+                date: rec.date,
+                chips: [rec.hasTranscript ? "Transcribed" : "Not transcribed"]
+                    + (rec.hasSummary ? ["Summarized"] : [])
+                    + (rec.summaryIsEdited ? ["Summary edited"] : []),
+                tabs: Library.Tab.allCases.map(\.rawValue),
+                selectedTab: Binding<Int>(
+                    get: { Library.Tab.allCases.firstIndex(of: lib.tab) ?? 0 },
+                    set: { lib.tab = Library.Tab.allCases[$0] }
+                ),
+                actions: [
+                    HeaderAction(title: "Summarize", icon: "sparkles",
+                                 enabled: rec.hasTranscript && !lib.summarizing.contains(rec.id),
+                                 action: { lib.summarize(rec.id) }),
+                    HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true,
+                                 action: { lib.copyCurrentTab() }),
+                    HeaderAction(title: "Finder", icon: "folder", enabled: true,
+                                 action: { lib.showInFinder(rec) })
+                ],
+                onRename: { lib.renaming = rec.id }
+            )
 
             if let error = lib.errors[rec.id] {
                 Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.brandWarningText)
                     .textSelection(.enabled)
             }
 
@@ -2186,6 +2300,7 @@ struct RecordingDetail: View {
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
         }
         .padding(20)
+        .padding(.bottom, 90)
     }
 
     @ViewBuilder private var transcriptTab: some View {
@@ -2247,7 +2362,7 @@ struct RecordingDetail: View {
                               systemImage: lib.editingSummary ? "checkmark" : "pencil")
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(lib.editingSummary ? .accentColor : .secondary)
+                    .tint(lib.editingSummary ? Color.brandAccent : Color.secondary)
                     .disabled(lib.summary.isEmpty)
                     .help(lib.editingSummary ? "Finish editing. Your changes are already saved."
                                              : "Correct the summary by hand: names, numbers, anything the model got wrong.")
@@ -2399,7 +2514,7 @@ struct SpeakerBar: View {
     }
 
     static func color(_ index: Int) -> Color {
-        [Color.blue, .orange, .green, .purple, .pink, .teal, .yellow, .red][index % 8]
+        [Color.blue, .orange, .green, .purple, .pink, .teal, .yellow, .red][index % 8] // brand-ok: speaker palette
     }
 }
 

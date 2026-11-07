@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 # Builds Earshot.app and installs it in ~/Applications, plus the helper
-# scripts it runs (transcribe, speakers) in ~/.local/bin. This repo is the
+# scripts it runs (transcribe, speakers, earshot-speak) in ~/.local/bin. This repo is the
 # master copy: edit here, then run this script.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 BIN="$HOME/.local/bin"
 mkdir -p "$BIN"
-install -m 755 ../scripts/transcribe ../scripts/speakers "$BIN/"
+install -m 755 ../scripts/transcribe ../scripts/speakers ../scripts/earshot-speak "$BIN/"
 
 APP="$HOME/Applications/Earshot.app"
 build=$(mktemp -d)
 trap 'rm -rf "$build"' EXIT
 
+# Every .swift file in this directory is part of the app (Tests/ is a subdirectory, so it is not
+# matched). A glob, not a list: a hand-kept list silently fell behind when DictationCleanup.swift
+# was added, and the app then failed to build while the typecheck gate, which globs, was green.
 swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 \
-  Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift -o "$build/Earshot"
+  *.swift -o "$build/Earshot"
 
 # The app icon is a layered Icon Composer file. actool turns it into Assets.car (Liquid Glass
 # icon for macOS 26) plus Earshot.icns (fallback), as Apple's guidelines ask.
@@ -40,10 +43,12 @@ cp "$build/Assets.car" "$build/Earshot.icns" "$APP/Contents/Resources/"
 # Menu bar artwork (a template image: macOS tints it for light and dark menu bars).
 cp ../assets/menubar.svg "$APP/Contents/Resources/"
 # The app runs its own copy of the helpers, so an install from the DMG needs nothing in ~/.local/bin.
-install -m 755 ../scripts/transcribe ../scripts/speakers "$APP/Contents/Resources/"
+install -m 755 ../scripts/transcribe ../scripts/speakers ../scripts/earshot-speak "$APP/Contents/Resources/"
 
-# Ad-hoc signature so macOS remembers the microphone permission for this app.
-codesign --force --deep --sign - "$APP"
+# Ad-hoc signing alone makes macOS identify the app by the hash of the exact binary, so every build
+# looked like a new app and lost its Accessibility and Microphone permission. The explicit
+# designated requirement keeps the identity the same across builds.
+codesign --force --deep --sign - -r='designated => identifier "com.gaberger.earshot"' "$APP"
 # Tell Finder/Launchpad about the app (and its "Open With" file types).
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 

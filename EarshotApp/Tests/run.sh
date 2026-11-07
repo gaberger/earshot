@@ -15,3 +15,51 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library EndO
 # CallStartTests also uses @main and fails itself if fewer than 10 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library CallStart.swift Tests/CallStartTests.swift -o "$out/call-start-tests"
 "$out/call-start-tests"
+# DictationTests also uses @main and fails itself if fewer than 54 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/DictationTests.swift -o "$out/dictation-tests"
+"$out/dictation-tests"
+# HotKeyTests also uses @main and fails itself if fewer than 30 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library HotKey.swift Tests/HotKeyTests.swift -o "$out/hotkey-tests"
+"$out/hotkey-tests"
+# DictionaryTests also uses @main and fails itself if fewer than 26 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationDictionary.swift Tests/DictionaryTests.swift -o "$out/dictionary-tests"
+"$out/dictionary-tests"
+# SearchTests also uses @main and fails itself if fewer than 24 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library SearchIndex.swift Tests/SearchTests.swift -o "$out/search-tests"
+"$out/search-tests"
+# DictationLogTests also uses @main and fails itself if fewer than 17 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationLog.swift Tests/DictationLogTests.swift -o "$out/dictation-log-tests"
+"$out/dictation-log-tests"
+# NoteSessionTests also uses @main and fails itself if fewer than 17 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift NoteSession.swift Tests/NoteSessionTests.swift -o "$out/note-session-tests"
+"$out/note-session-tests"
+# CleanupTests also uses @main and fails itself if fewer than 24 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift DictationCleanup.swift Tests/CleanupTests.swift -o "$out/cleanup-tests"
+"$out/cleanup-tests"
+# earshot-mcp: the MCP server is driven over stdio (ADR-2611071100); it fails itself if fewer than 24 checks ran.
+python3 -I ../scripts/earshot-mcp-test
+# earshot-mcp hardening: hostile filesystem and protocol input; it fails itself if fewer than 100 checks ran.
+python3 -I ../scripts/earshot-mcp-hardening-test
+# speakers: the transcript rewrite must be atomic (readers see old or new, never partial); fails itself if fewer than 7 checks ran.
+python3 -I ../scripts/speakers-test
+# HighlightTests also uses @main and fails itself if fewer than 28 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift WindowHighlight.swift Tests/HighlightTests.swift -o "$out/highlight-tests"
+"$out/highlight-tests"
+# SubmitTests also uses @main and fails itself if fewer than 15 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SubmitTests.swift -o "$out/submit-tests"
+"$out/submit-tests"
+# earshot-speak: the Stop hook that speaks replies (ADR-2611071600); it fails itself if fewer than 56 checks ran.
+python3 -I ../scripts/earshot-speak-test
+# SpeechStopTests also uses @main and fails itself if fewer than 7 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SpeechStopTests.swift -o "$out/speech-stop-tests"
+"$out/speech-stop-tests"
+# The in-app Help must mention every user-facing feature (it went several features stale once).
+bash Tests/help-check.sh
+# PasteGuardTests also uses @main and fails itself if fewer than 22 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library PasteGuard.swift Tests/PasteGuardTests.swift -o "$out/paste-guard-tests"
+"$out/paste-guard-tests"
+# BrandTests also uses @main and fails itself if fewer than 23 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Brand.swift Tests/BrandTests.swift -o "$out/brand-tests"
+"$out/brand-tests"
+# The views use the brand tokens, the root tint is set, and the icon follows concept B (ADR-2611072000).
+bash Tests/brand-check.sh

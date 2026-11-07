@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Gate for `transcribe -r`: a failed recording must exit non-zero, a Ctrl+C stop must not.
+
+Run: python3 -I scripts/transcribe-test
+Stubs ffmpeg and whisper-cli on PATH. Fails itself if fewer than MIN_CHECKS checks ran.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+MIN_CHECKS = 5
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCRIPT = os.path.join(HERE, "transcribe")
+checks = failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", str(detail)[:300])
+
+
+def run(ffmpeg_body):
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "models").mkdir()
+        (d / "models" / "ggml-large-v3-turbo.bin").write_text("x")
+        (d / "bin").mkdir()
+        for name, body in (("ffmpeg", ffmpeg_body), ("whisper-cli", "exit 0")):
+            p = d / "bin" / name
+            p.write_text("#!/bin/sh\n" + body + "\n")
+            p.chmod(0o755)
+        env = dict(os.environ, PATH=f"{d / 'bin'}:/usr/bin:/bin", HOME=str(d),
+                   WHISPER_MODEL_DIR=str(d / "models"), WHISPER_REC_DIR=str(d / "rec"))
+        r = subprocess.run(["bash", SCRIPT, "-r"], env=env, capture_output=True, text=True, timeout=30)
+        return r
+
+
+# Mic denied / no device: ffmpeg fails and creates nothing.
+# The stub only misbehaves for the avfoundation (record) call; the later wav conversion succeeds.
+REC = 'case "$*" in *avfoundation*) ;; *) exit 0;; esac; for last; do :; done; '
+r = run(REC + "exit 1")
+check("failed recording exits non-zero", r.returncode != 0, r.returncode)
+check("failed recording says so on stderr", "Recording failed" in r.stderr, r.stderr)
+
+# Empty output file is also a failure.
+r = run(REC + ': > "$last"; exit 1')
+check("empty recording exits non-zero", r.returncode != 0, r.returncode)
+
+# Ctrl+C stop: ffmpeg wrote audio then exited 255. Must proceed to transcription and exit 0.
+r = run(REC + 'echo data > "$last"; exit 255')
+check("user-stopped recording exits 0", r.returncode == 0, (r.returncode, r.stderr))
+check("user-stopped recording is transcribed", "Transcribing:" in r.stdout, r.stdout)
+
+def output_base(rel):
+    """Run `transcribe FILE` on d/rel and return (-of value relative to d, result)."""
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        (d / "models").mkdir()
+        (d / "models" / "ggml-large-v3-turbo.bin").write_text("x")
+        (d / "bin").mkdir()
+        log = d / "of.log"
+        stubs = {"ffmpeg": "exit 0",
+                 "whisper-cli": 'while [ $# -gt 0 ]; do [ "$1" = -of ] && echo "$2" > "%s"; shift; done' % log}
+        for name, body in stubs.items():
+            p = d / "bin" / name
+            p.write_text("#!/bin/sh\n" + body + "\n")
+            p.chmod(0o755)
+        f = d / rel
+        f.parent.mkdir(parents=True)
+        f.write_text("x")
+        env = dict(os.environ, PATH=f"{d / 'bin'}:/usr/bin:/bin", HOME=str(d),
+                   WHISPER_MODEL_DIR=str(d / "models"))
+        r = subprocess.run(["bash", SCRIPT, str(f)], env=env, capture_output=True, text=True, timeout=30)
+        got = log.read_text().strip() if log.exists() else ""
+        return os.path.relpath(got, d) if got else got, r
+
+
+# A dot in a directory name must not be mistaken for the extension (`speakers` uses with_suffix).
+got, r = output_base("rec.d/audio")
+check("extensionless file in dotted dir keeps its dir", got == "rec.d/audio", (got, r.stderr))
+got, r = output_base("rec.d/talk.mp3")
+check("extension is still stripped in dotted dir", got == "rec.d/talk", (got, r.stderr))
+
+# One unreadable input must not abort the batch: later files are still transcribed, exit is non-zero.
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d)
+    (d / "models").mkdir()
+    (d / "models" / "ggml-large-v3-turbo.bin").write_text("x")
+    (d / "bin").mkdir()
+    done = d / "done.log"
+    stubs = {"ffmpeg": 'case "$*" in *bad.mp3*) echo corrupt >&2; exit 1;; esac; exit 0',
+             "whisper-cli": 'while [ $# -gt 0 ]; do [ "$1" = -of ] && echo "$2" >> "%s"; shift; done' % done}
+    for name, body in stubs.items():
+        p = d / "bin" / name
+        p.write_text("#!/bin/sh\n" + body + "\n")
+        p.chmod(0o755)
+    files = []
+    for n in ("a.mp3", "bad.mp3", "c.mp3"):
+        (d / n).write_text("x")
+        files.append(str(d / n))
+    env = dict(os.environ, PATH=f"{d / 'bin'}:/usr/bin:/bin", HOME=str(d),
+               WHISPER_MODEL_DIR=str(d / "models"))
+    r = subprocess.run(["bash", SCRIPT, *files], env=env, capture_output=True, text=True, timeout=30)
+    got = done.read_text().split() if done.exists() else []
+    check("bad file does not stop later files", str(d / "c") in got, (got, r.stderr))
+    check("earlier files still transcribed", str(d / "a") in got, (got, r.stderr))
+    check("batch with a bad file exits non-zero", r.returncode != 0, r.returncode)
+    check("bad file is named on stderr", "bad.mp3" in r.stderr, r.stderr)
+
+MIN_CHECKS = 11
+if checks < MIN_CHECKS:
+    print(f"FAIL: only {checks} checks ran, need {MIN_CHECKS}")
+    sys.exit(1)
+sys.exit(1 if failures else 0)

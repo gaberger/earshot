@@ -45,8 +45,15 @@ if $record; then
   echo "Recording to $out — press Ctrl+C to stop."
   # Let Ctrl+C stop ffmpeg (which then finalises the file) without killing this script.
   trap ':' INT
-  ffmpeg -hide_banner -loglevel error -f avfoundation -i ":default" -ac 1 -ar 16000 "$out" || true
+  # ffmpeg exits non-zero after Ctrl+C too, so its status can't tell a stop from a failure;
+  # a recording that exists and has data can.
+  rc=0
+  ffmpeg -hide_banner -loglevel error -f avfoundation -i ":default" -ac 1 -ar 16000 "$out" || rc=$?
   trap - INT
+  if [[ ! -s "$out" ]]; then
+    echo "Recording failed (ffmpeg exit $rc): no audio was captured. Check microphone permission and input device." >&2
+    exit 1
+  fi
   files=("$out")
 fi
 
@@ -55,16 +62,29 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+failed=0
 for f in "${files[@]}"; do
   [[ -f "$f" ]] || { echo "Skipping, not a file: $f" >&2; continue; }
   echo "Transcribing: $f"
   # whisper.cpp wants 16 kHz mono WAV; convert whatever we were given.
   wav="$tmp/input.wav"
-  ffmpeg -hide_banner -loglevel error -y -i "$f" -ac 1 -ar 16000 -c:a pcm_s16le "$wav"
-  base="${f%.*}"
+  # A file ffmpeg can't read must not abort the rest of the batch; remember it and fail at the end.
+  if ! ffmpeg -hide_banner -loglevel error -y -i "$f" -ac 1 -ar 16000 -c:a pcm_s16le "$wav"; then
+    echo "Skipping, ffmpeg could not read: $f" >&2
+    failed=$((failed + 1))
+    continue
+  fi
+  # Strip the extension from the filename only; a dot in a directory name is not one.
+  name="${f##*/}"
+  base="${f%"$name"}${name%.*}"
   vad=()
   [[ -f "$VAD_MODEL" ]] && vad=(--vad -vm "$VAD_MODEL")
   whisper-cli -m "$MODEL" -f "$wav" -l "$lang" ${translate[@]+"${translate[@]}"} \
     ${vad[@]+"${vad[@]}"} -dtw "$DTW" -otxt -osrt -ojf -of "$base" -np
   echo "Saved: $base.txt, $base.srt and $base.json"
 done
+
+if (( failed )); then
+  echo "$failed file(s) could not be converted and were not transcribed." >&2
+  exit 1
+fi

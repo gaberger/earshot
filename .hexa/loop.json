@@ -16,6 +16,204 @@
       "stage": "build",
       "updated": "2026-11-06T17:03:32.746765+00:00"
     },
+    "72718d08-7a23-41db-9414-e2ca3295f525": {
+      "gate": "python3 -I scripts/earshot-mcp-test && python3 -I scripts/earshot-mcp-hardening-test",
+      "pid": 24630,
+      "pid_start": null,
+      "stage": "gate",
+      "tasks": [
+        {
+          "status": "doing",
+          "title": "Write scripts/earshot-mcp"
+        },
+        {
+          "status": "todo",
+          "title": "Hook hardening test into run.sh"
+        },
+        {
+          "status": "todo",
+          "title": "README section"
+        },
+        {
+          "status": "todo",
+          "title": "hexa analyze clean"
+        }
+      ],
+      "updated": "2026-11-07T15:24:45.918839+00:00"
+    },
+    "a3af30eb-c7d6-477d-88da-cbf86dcd00da": {
+      "adr": "ADR-2611061900",
+      "files": [
+        "scripts/release-test",
+        "scripts/release",
+        "docs/adrs/ADR-2611061900-dictate-into-any-app.md",
+        "README.md",
+        "docs/releases/1.1.0.md",
+        "EarshotApp/Tests/HotKeyTests.swift",
+        "EarshotApp/Tests/DictationTests.swift",
+        "EarshotApp/Tests/run.sh"
+      ],
+      "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationService.swift HotKey.swift DictationHUD.swift && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-06T23:07:32.000080+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationService.swift HotKey.swift DictationHUD.swift && bash Tests/run.sh >/dev/null && grep -q \"HotKey.swift\" build.sh && grep -q \"DictationHUD.swift\" build.sh && grep -q HotKeyRecorder Earshot.swift && ! grep -q \"Hold Control+Option+Space\" Earshot.swift",
+        "stage": "build"
+      },
+      "pid": 29691,
+      "pid_start": null,
+      "stage": "gate",
+      "tasks": [
+        {
+          "done_at": "2026-11-06T18:15:52.174217+00:00",
+          "status": "done",
+          "title": "scripts/release: validate, bump VERSION, commit, tag, optional push"
+        },
+        {
+          "done_at": "2026-11-06T18:30:23.156622+00:00",
+          "status": "done",
+          "title": "Dictation.swift: pure DictationSession state machine + text cleanup, with DictationTests"
+        },
+        {
+          "done_at": "2026-11-06T18:34:06.314855+00:00",
+          "status": "done",
+          "title": "DictationService.swift: hotkey, capture, transcribe, paste, secure-field check"
+        },
+        {
+          "done_at": "2026-11-06T18:36:21.798942+00:00",
+          "status": "done",
+          "title": "Wire into Earshot.swift + build.sh: Settings → Dictation, Accessibility prompt"
+        },
+        {
+          "done_at": "2026-11-06T18:36:21.811285+00:00",
+          "status": "done",
+          "title": "Docs: README + release notes"
+        },
+        {
+          "done_at": "2026-11-06T23:05:38.772434+00:00",
+          "status": "done",
+          "title": "HotKey.swift: HotKey value type (validity, display, Cocoa→Carbon, load/save) with HotKeyTests"
+        },
+        {
+          "done_at": "2026-11-06T23:07:31.961352+00:00",
+          "status": "done",
+          "title": "Dictation.swift: State.indicatorText / showsLevel"
+        },
+        {
+          "done_at": "2026-11-06T23:07:31.974894+00:00",
+          "status": "done",
+          "title": "DictationHUD.swift: non-activating floating Listening… panel with live level; service shows/hides it"
+        },
+        {
+          "done_at": "2026-11-06T23:09:40.693080+00:00",
+          "status": "done",
+          "title": "Service uses the saved HotKey and re-registers on change; Settings key recorder + Reset; build.sh"
+        },
+        {
+          "done_at": "2026-11-06T23:09:40.703490+00:00",
+          "status": "done",
+          "title": "Docs: README, release notes, ADR amendment"
+        }
+      ],
+      "updated": "2026-11-06T23:09:40.703611+00:00"
+    },
+    "af3b401a-8528-4ed1-9708-c8d9eb9f55ce": {
+      "adr": "ADR-2611062130",
+      "files": [
+        "docs/adrs/ADR-2611062045-dictation-dictionary-and-tap-to-toggle.md",
+        "EarshotApp/Tests/DictionaryTests.swift",
+        "README.md",
+        "EarshotApp/Tests/DictationTests.swift",
+        "EarshotApp/Tests/RenderUI.swift",
+        "docs/adrs/ADR-2611062130-restyle-the-whole-app.md"
+      ],
+      "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
+      "last_run": {
+        "at": "2026-11-07T03:28:15.537868+00:00",
+        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationLog.swift NotesStore.swift NoteSession.swift NoteRecorder.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift NotesView.swift RecordingViews.swift AppNav.swift ChromeViews.swift SearchIndex.swift DictationSettingsView.swift",
+        "stage": "build"
+      },
+      "pid": 39595,
+      "pid_start": null,
+      "stage": "gate",
+      "tasks": [
+        {
+          "done_at": "2026-11-07T02:14:21.023373+00:00",
+          "status": "done",
+          "title": "Kit: cards, rows, banners, chips (done)"
+        },
+        {
+          "status": "doing",
+          "title": "Settings pages in a sidebar"
+        },
+        {
+          "done_at": "2026-11-07T02:20:08.067395+00:00",
+          "status": "done",
+          "title": "Home: greeting, cards, filter pills, day-grouped feed"
+        },
+        {
+          "status": "todo",
+          "title": "Shell: sidebar brand + status card, slim toolbar, floating Record bar"
+        },
+        {
+          "status": "todo",
+          "title": "Menu bar panel and Listening pill"
+        },
+        {
+          "done_at": "2026-11-07T02:48:46.254390+00:00",
+          "status": "done",
+          "title": "Separate dictation from recordings: sidebar navigation, Dictation page, Home for recordings only"
+        },
+        {
+          "done_at": "2026-11-07T02:48:46.264359+00:00",
+          "status": "done",
+          "title": "Recording screen and recording header (done, e53d492)"
+        },
+        {
+          "status": "todo",
+          "title": "Notes box while recording, used by the summary"
+        },
+        {
+          "done_at": "2026-11-07T02:58:29.359856+00:00",
+          "status": "done",
+          "title": "Sidebar footer (Settings, Help) and a top search bar with ⌘K"
+        },
+        {
+          "done_at": "2026-11-07T03:22:46.143020+00:00",
+          "status": "done",
+          "title": "Notes log: DictationLog logic + tests"
+        },
+        {
+          "done_at": "2026-11-07T03:22:46.152374+00:00",
+          "status": "done",
+          "title": "Notes log: Notes page view"
+        },
+        {
+          "done_at": "2026-11-07T03:22:46.160905+00:00",
+          "status": "done",
+          "title": "Notes log: record dictations (service, switch, clear)"
+        },
+        {
+          "done_at": "2026-11-07T03:22:46.170140+00:00",
+          "status": "done",
+          "title": "Notes log: sidebar area, search, README"
+        },
+        {
+          "done_at": "2026-11-07T03:32:18.251232+00:00",
+          "status": "done",
+          "title": "Notes in the ⌘K search (SearchIndex note hits, tests first)"
+        },
+        {
+          "status": "todo",
+          "title": "Dictate a note inside Earshot (saved, not typed anywhere)"
+        },
+        {
+          "done_at": "2026-11-07T03:32:18.260716+00:00",
+          "status": "done",
+          "title": "Notes: in-app Record button (NoteSession tests, Notes page recording UI, recorder service)"
+        }
+      ],
+      "updated": "2026-11-07T03:32:18.260876+00:00"
+    },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
       "evidence": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift && bash Tests/run.sh | tail -2",
@@ -42,6 +240,30 @@
         }
       ],
       "updated": "2026-11-02T21:51:16.110456+00:00"
+    },
+    "e8000968-e6c7-4c12-a152-9697b902d961": {
+      "adr": "ADR-2611071400",
+      "files": [
+        "docs/adrs/ADR-2611071000-dictation-cleanup-with-on-device-model.md",
+        "docs/adrs/ADR-2611071100-local-mcp-server-for-agents.md",
+        "scripts/earshot-mcp-test",
+        "EarshotApp/Tests/CleanupTests.swift",
+        "docs/adrs/ADR-2611071300-pill-names-the-cleanup-stage.md",
+        "EarshotApp/build.sh",
+        "docs/adrs/ADR-2611071400-highlight-the-dictation-target-window.md",
+        "EarshotApp/Tests/HighlightTests.swift"
+      ],
+      "gate": "python3 -I scripts/earshot-mcp-test && cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-07T19:57:16.293072+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+        "stage": "build"
+      },
+      "pid": 15802,
+      "pid_start": null,
+      "running": null,
+      "stage": "build",
+      "updated": "2026-11-07T19:57:16.293084+00:00"
     },
     "f1d3efd1-a9d0-47b4-9b5e-c875df1df171": {
       "adr": "ADR-2611051236",

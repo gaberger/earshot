@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earshot brand decision sheet</title>
+<style>
+  :root { --pg:#e6e6e8; --card:#fff; --ink:#1b1b1d; --mut:#5a5a60; --line:#cfcfd4; --f4:#FB923C; --f5:#F97316; --f6:#EA580C; --f7:#C2410C; --ch:#1C1C1C; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--pg); color:var(--ink); font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif; }
+  main { width:min(100% - 2rem, 1240px); margin:0 auto; padding:2rem 0 4rem; }
+  h1 { font-size:2rem; margin:0 0 .25rem; letter-spacing:-.02em; }
+  h2 { font-size:1.35rem; margin:3rem 0 .4rem; padding-top:1rem; border-top:2px solid var(--ink); letter-spacing:-.01em; }
+  h3 { font-size:1rem; margin:0 0 .5rem; }
+  p { margin:.3rem 0 .8rem; max-width:80ch; }
+  .lead { color:var(--mut); }
+  .row { display:grid; gap:1rem; align-items:start; }
+  .c3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .c2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1rem; min-width:0; }
+  .card img { max-width:100%; height:auto; display:block; }
+  .cap { font-size:.85rem; color:var(--mut); margin:.6rem 0 0; }
+  .tag { display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:.15rem .5rem; border-radius:99px; background:#eee; color:#444; margin-bottom:.5rem; }
+  .tag.cur { background:#dfe8ff; color:#1d3fa8; } .tag.fl { background:#ffe6d2; color:#9a3412; }
+  .logos { display:flex; gap:.9rem; align-items:flex-end; flex-wrap:wrap; }
+  .logos figure { margin:0; text-align:center; font-size:.75rem; color:var(--mut); }
+  .mb { display:flex; gap:.6rem; margin-top:.8rem; }
+  .bar { flex:1; border-radius:6px; padding:.35rem .7rem; display:flex; align-items:center; gap:.7rem; font-size:.8rem; }
+  .bar.l { background:#f1f1f3; color:#222; border:1px solid #d6d6da; }
+  .bar.d { background:#2a2a2c; color:#eee; }
+  .bar.d img { filter:invert(1); }
+  .bar img { height:18px; width:auto; }
+  .sw { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.7rem; }
+  .sw div { border-radius:10px; overflow:hidden; border:1px solid var(--line); background:#fff; font-size:.78rem; }
+  .sw i { display:block; height:56px; }
+  .sw b { display:block; padding:.4rem .55rem 0; font-size:.82rem; }
+  .sw span { display:block; padding:0 .55rem .5rem; color:var(--mut); line-height:1.4; }
+  table { border-collapse:collapse; width:100%; font-size:.85rem; background:#fff; }
+  th, td { border:1px solid var(--line); padding:.35rem .55rem; text-align:left; vertical-align:top; }
+  th { background:#f3f3f5; }
+  .ok { color:#14703a; font-weight:700; } .no { color:#b3261e; font-weight:700; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; }
+  .pair .card { padding:.7rem; }
+  ul { margin:.3rem 0 .8rem; padding-left:1.2rem; } li { margin:.25rem 0; }
+  /* website mock, flat CSS only */
+  .web { background:#1C1C1C; color:#F2F2F2; border-radius:14px; padding:1.6rem 1.8rem 0; overflow:hidden; border:1px solid #323232; }
+  .web .nav { display:flex; justify-content:space-between; align-items:center; font-size:.85rem; color:#9A9A9A; border-bottom:1px solid #323232; padding-bottom:.8rem; margin-bottom:1.6rem; }
+  .web .nav b { color:#F2F2F2; display:flex; align-items:center; gap:.5rem; font-size:1rem; }
+  .web .nav img { width:26px; height:26px; }
+  .web h4 { margin:0; font-size:2.6rem; line-height:1; letter-spacing:-.04em; font-weight:800; max-width:14ch; }
+  .web h4 em { font-style:normal; color:var(--f5); }
+  .web p { color:#9A9A9A; margin:.9rem 0 1.1rem; }
+  .web .btns { display:flex; gap:.6rem; margin-bottom:1.4rem; }
+  .web .b1 { background:var(--f5); color:#141414; font-weight:700; padding:.55rem 1.1rem; border-radius:99px; font-size:.9rem; }
+  .web .b2 { border:1px solid #323232; padding:.55rem 1.1rem; border-radius:99px; font-size:.9rem; }
+  .web img.shot { width:86%; margin:0 auto -4px; border-radius:12px 12px 0 0; border:1px solid #323232; border-bottom:0; box-shadow:0 0 80px -20px rgba(249,115,22,.35); }
+  .rec { background:#fff; border:2px solid var(--ink); border-radius:12px; padding:1rem 1.2rem; }
+  .rec ol { margin:.3rem 0; padding-left:1.2rem; } .rec li { margin:.2rem 0; }
+  @media (max-width:860px){ .c3,.c2,.pair{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<main>
+<h1>Earshot: one look for logo, app and website</h1>
+<p class="lead">Decision sheet. Nothing in the product was changed. App renders are the real SwiftUI views drawn with sample data from patched scratch copies; the website images are headless Chrome screenshots of <code>site/index.html</code>.</p>
+
+<h2>1. Today: three looks that do not agree</h2>
+<div class="row c3">
+  <div class="card">
+    <span class="tag">Logo</span>
+    <img src="logo-current-512.png" alt="Current app icon: indigo gradient rounded square with a white ear and three white sound waves" width="512" height="512">
+    <p class="cap">Indigo gradient #5B5BF0 to #2A1A7A, white ear, three fading waves. Speaks in violet.</p>
+  </div>
+  <div class="card">
+    <span class="tag">App UI</span>
+    <img src="app-current-recordings.png" alt="App Recordings home in a dark window, selected pill in system blue, failed row in orange" width="760" height="640">
+    <p class="cap">Dark charcoal, hairline borders, rounded cards. Accent is the system blue (follows the user's macOS setting); orange means warning; red means recording.</p>
+  </div>
+  <div class="card">
+    <span class="tag">Website</span>
+    <img src="website-light.png" alt="Website hero: light paper page, huge black headline, orange button" width="1280" height="1500">
+    <p class="cap">Light paper #F7F3EC, huge black 900-weight headline, 2 px black rules, flame-orange #E0400D. The only orange the app has is for warnings and the dictation flame, so the site and the app share no colour at all except by accident. (The site does ship a dark scheme: <a href="website-dark.png">website-dark.png</a>.)</p>
+  </div>
+</div>
+<p>The app has a fourth, unspoken identity: the dictation flame, hard-coded orange <code>#FF8C1A</code>. It is the product's most memorable moment and it is the colour of neither the icon nor the UI accent. That is the opening for the proposal.</p>
+
+<h2>2. Proposal: one flame-orange brand</h2>
+<p class="lead">Dark charcoal surfaces and hairlines everywhere (as the app already is), one accent, flame orange <b>#F97316</b>, used for the logo, the app accent and the site.</p>
+
+<h3>Palette and contrast</h3>
+<div class="sw">
+  <div><i style="background:#FB923C"></i><b>Flame 400 #FB923C</b><span>Accent text on dark. 7.5:1 on #1C1C1C</span></div>
+  <div><i style="background:#F97316"></i><b>Flame 500 #F97316</b><span>The accent: fills, switches, selected states, logo. 6.1:1 on #1C1C1C</span></div>
+  <div><i style="background:#EA580C"></i><b>Flame 600 #EA580C</b><span>Pressed, gradients. 4.8:1 on #1C1C1C</span></div>
+  <div><i style="background:#C2410C"></i><b style="">Ember 700 #C2410C</b><span>Logo gradient end; text on light pages. 4.7:1 on paper</span></div>
+  <div><i style="background:#1C1C1C"></i><b>Window #1C1C1C</b><span>Measured app background</span></div>
+  <div><i style="background:#2B2B2B"></i><b>Pill #2B2B2B</b><span>Neutral chip fill; card hairline is #323232</span></div>
+  <div><i style="background:#F2F2F2"></i><b>Text #F2F2F2</b><span>15.2:1 on #1C1C1C</span></div>
+  <div><i style="background:#9A9A9A"></i><b>Secondary #9A9A9A</b><span>6.1:1 on #1C1C1C</span></div>
+  <div><i style="background:#FBBF24"></i><b>Warning amber #FBBF24</b><span>Proposed, so warnings stop looking like the accent. 10.2:1</span></div>
+  <div><i style="background:#FF453A"></i><b>Record red #FF453A</b><span>Unchanged role. 5.0:1</span></div>
+</div>
+<table style="margin-top:1rem">
+  <tr><th>Pair</th><th>Ratio</th><th>Verdict</th></tr>
+  <tr><td>Flame 500 text on #1C1C1C</td><td>6.08:1</td><td class="ok">Passes AA for body text</td></tr>
+  <tr><td>Flame 500 text on its own 22 percent selected-pill fill (measured #49301E)</td><td>4.34:1</td><td class="no">Just under 4.5. Use Flame 400 for pill text: 5.38:1</td></tr>
+  <tr><td>White text on Flame 500 button</td><td>2.80:1</td><td class="no">Fails. Do not put white text on #F97316</td></tr>
+  <tr><td>#141414 text on Flame 500 button</td><td>6.57:1</td><td class="ok">Passes. Use dark text on orange fills</td></tr>
+  <tr><td>White on Flame 600 #EA580C</td><td>3.56:1</td><td>Only for 18 pt bold or larger</td></tr>
+  <tr><td>White on Ember 700 #C2410C</td><td>5.18:1</td><td class="ok">Passes: the light-page button colour</td></tr>
+  <tr><td>Flame 500 text on paper #F7F3EC</td><td>2.53:1</td><td class="no">Fails. On light backgrounds use Ember 700 (4.68:1)</td></tr>
+  <tr><td>System orange #FF9F0A (today's warning) on #1C1C1C</td><td>8.29:1</td><td>Fine for contrast, but it is the same hue family as the new accent</td></tr>
+</table>
+<p class="cap">Ratios computed from the sRGB values with the WCAG formula. Switch knobs and the logo are graphics, so the 3:1 rule applies, and orange on charcoal clears it.</p>
+
+<h3 style="margin-top:1.6rem">Three logo concepts</h3>
+<div class="row c3">
+  <div class="card">
+    <span class="tag fl">A. Recoloured</span>
+    <div class="logos">
+      <figure><img src="logo-a-512.png" width="200" height="200" alt="Concept A: orange gradient squircle, white ear and three waves">512</figure>
+      <figure><img src="logo-a-64.png" width="64" height="64" alt="">64</figure>
+      <figure><img src="logo-a-32.png" width="32" height="32" alt="">32</figure>
+    </div>
+    <div class="mb"><div class="bar l"><img src="logo-a-menubar.svg" alt="">menu bar, light</div><div class="bar d"><img src="logo-a-menubar.svg" alt="">dark</div></div>
+    <p class="cap">Today's mark with the indigo swapped for the flame gradient (#FB923C to #F97316 to #C2410C). Smallest change; reads as "Earshot, but orange".</p>
+  </div>
+  <div class="card">
+    <span class="tag fl">B. Dark, matches the app</span>
+    <div class="logos">
+      <figure><img src="logo-b-512.png" width="200" height="200" alt="Concept B: charcoal squircle with an orange ear and orange waves fading outward">512</figure>
+      <figure><img src="logo-b-64.png" width="64" height="64" alt="">64</figure>
+      <figure><img src="logo-b-32.png" width="32" height="32" alt="">32</figure>
+    </div>
+    <div class="mb"><div class="bar l"><img src="logo-b-menubar.svg" alt="">menu bar, light</div><div class="bar d"><img src="logo-b-menubar.svg" alt="">dark</div></div>
+    <p class="cap">Charcoal tile with a hairline edge, orange ear, orange waves fading. It is the app window in icon form. Trade-off: the outer waves are faint at 32 px and the tile melts into a dark Dock or dark wallpaper.</p>
+  </div>
+  <div class="card">
+    <span class="tag fl">C. The wave becomes a flame</span>
+    <div class="logos">
+      <figure><img src="logo-c-512.png" width="200" height="200" alt="Concept C: orange squircle, white ear, one wave, and the outer wave drawn as a small flame">512</figure>
+      <figure><img src="logo-c-64.png" width="64" height="64" alt="">64</figure>
+      <figure><img src="logo-c-32.png" width="32" height="32" alt="">32</figure>
+    </div>
+    <div class="mb"><div class="bar l"><img src="logo-c-menubar.svg" alt="">menu bar, light</div><div class="bar d"><img src="logo-c-menubar.svg" alt="">dark</div></div>
+    <p class="cap">Ear plus one wave, and where the outer wave was there is now a flame: sound goes in, fire comes out where you dictate. Trade-off: it drops the mid wave, and at 18 px in the menu bar the flame is a blob, so keep the plain ear-and-wave template there (logo-a-menubar.svg).</p>
+  </div>
+</div>
+<p class="cap">For reference, today's mark at 64 px: <img src="logo-current-64.png" width="64" height="64" alt="Current icon at 64 pixels" style="vertical-align:middle">. Each concept also exists as a monochrome template SVG for the menu bar (<code>logo-*-menubar.svg</code>), black on transparent, which macOS tints.</p>
+
+<h3 style="margin-top:1.6rem">The app, current against flame</h3>
+<p>Same views, same sample data, same dark appearance. Only <code>Color.accentColor</code> becomes #F97316. Selected filter pill, selected sidebar row and the switches take the new accent; failed rows and the permission banner stay system orange, which now sits very close to the accent (see trade-offs).</p>
+<div class="row c2">
+  <div class="card"><span class="tag cur">Current</span><img src="app-current-recordings.png" alt="Recordings home, current" width="760" height="640"></div>
+  <div class="card"><span class="tag fl">Flame</span><img src="app-flame-recordings.png" alt="Recordings home, flame accent" width="760" height="640"></div>
+  <div class="card"><span class="tag cur">Current</span><img src="app-current-dictation.png" alt="Dictation settings, current, switches in blue" width="680" height="881"></div>
+  <div class="card"><span class="tag fl">Flame</span><img src="app-flame-dictation.png" alt="Dictation settings, flame, switches in orange" width="680" height="881"></div>
+  <div class="card"><span class="tag cur">Current</span><img src="app-current-notes.png" alt="Notes, current" width="760" height="640"></div>
+  <div class="card"><span class="tag fl">Flame</span><img src="app-flame-notes.png" alt="Notes, flame" width="760" height="640"></div>
+  <div class="card"><span class="tag cur">Current sidebar</span><img src="app-current-sidebar.png" alt="Sidebar selection, current" width="260" height="256" style="max-width:260px"></div>
+  <div class="card"><span class="tag fl">Flame sidebar</span><img src="app-flame-sidebar.png" alt="Sidebar selection, flame" width="260" height="256" style="max-width:260px"></div>
+</div>
+<p class="cap">Honest limits. (1) The Notes scene shows almost no accent either way: that screen is neutral plus red. (2) The switches and the Hold/Tap control in these renders are small stand-ins drawn in the accent colour, because the native ones draw grey when rendered off-screen; an active native switch is blue today and would be orange only if the app sets <code>.tint</code>. (3) The Dictation scene hides the Accessibility permission banner so the good state shows. Nothing was rendered of the dictation flame itself or of the live recording screen in flame colours.</p>
+
+<h3>The website, changed to match the app</h3>
+<div class="row c2">
+  <div class="web">
+    <div class="nav"><b><img src="logo-c-64.png" alt="">Earshot</b><span>What it is &nbsp; Dictation &nbsp; Notes &nbsp; Privacy &nbsp; Install</span></div>
+    <h4>Meeting notes and dictation that <em>stay on your Mac</em></h4>
+    <p>Earshot records a meeting, writes the transcript and drafts the summary, all on this Mac.</p>
+    <div class="btns"><span class="b1">Download for Mac</span><span class="b2">View on GitHub</span></div>
+    <img class="shot" src="app-flame-recordings.png" alt="Flame variant of the Recordings screen used as the hero image">
+  </div>
+  <div class="rec">
+    <h3>What changes on the site</h3>
+    <ol>
+      <li>Default to dark: page #1C1C1C (the app window), alternating bands #141414, text #F2F2F2, secondary #9A9A9A. Keep a light scheme only as an opt-in.</li>
+      <li>Replace the 2 px black rules and 3 px panel borders with 1 px #323232 hairlines, and 12 to 16 px rounded cards, as the app does.</li>
+      <li>Accent: one orange. Fills #F97316 with dark #141414 text; links and small accent text #FB923C; on any light section use #C2410C.</li>
+      <li>Keep the single bold headline treatment (800 to 900 weight, tight tracking) but cap it near 4.5rem, and set only one phrase in orange. Section numerals stay, in orange.</li>
+      <li>Hero image: the flame-accent app render at full width with a faint orange glow, so the first thing a visitor sees is the app itself.</li>
+      <li>Brand: replace the orange dot after the wordmark with the new icon. Reuse the app's dictation flame as the one decorative motif.</li>
+    </ol>
+  </div>
+</div>
+<p class="cap">The left panel is a flat HTML mock of the idea, not the real site.</p>
+
+<h2>3. Trade-offs to decide with open eyes</h2>
+<ul>
+  <li><b>Blue follows the user, orange does not.</b> Today the selection colour and switches follow the user's macOS accent setting. A fixed orange overrides that for selected pills, the sidebar and anything the app tints. Native switches and segmented controls need an explicit tint to follow. This is a deliberate brand-over-system choice, and some Mac users dislike it.</li>
+  <li><b>Orange now means two things.</b> The app uses system orange for errors and warnings. With an orange accent a failed row and a selected pill look related. Proposal: move warnings to amber #FBBF24 with the warning triangle always present, and keep red for recording. Without that, the flame accent weakens the error signal.</li>
+  <li><b>White on orange fails contrast</b> (2.8:1). Orange buttons and pills need dark text, which is also a different look from the usual white-on-colour buttons.</li>
+  <li><b>Record red and flame orange are neighbours.</b> They stay distinct in the renders (red dot against orange accent) but both are warm; the red record button is the one thing that should not become orange.</li>
+  <li><b>The icon is a file edit, not a setting.</b> Changing it means editing <code>assets/Earshot.icon/icon.json</code> (the gradient stops, in extended sRGB) and the layer SVGs in <code>assets/Earshot.icon/Assets/</code>, plus <code>assets/earshot-logo.svg</code> and <code>assets/menubar.svg</code>, then rebuilding with Icon Composer output. These concepts are flat SVG: the layered Liquid Glass icon (ear layer, wave layers) was not rebuilt.</li>
+</ul>
+
+<h2>4. Recommendation</h2>
+<div class="rec">
+  <ol style="list-style:none;padding:0;margin:0">
+    <li><b>1. Pick concept C</b> for the app icon: it is the only one that carries both ideas (ear, and dictation fire), and the flame is the app's most distinctive feature. Fall back to A if the flame looks muddy in the real Dock.</li>
+    <li><b>2. Why not B:</b> it matches the window best but is the least visible in a dark Dock and has the faintest waves at 32 px.</li>
+    <li><b>3. App accent and icon:</b> set one <code>Color.flame = #F97316</code> and replace every <code>Color.accentColor</code> (pill, sidebar, shortcut border) and add <code>.tint</code> at the window root so switches follow; use dark text on orange fills; selected-pill text #FB923C; move warnings to amber; point the dictation flame at the same #F97316 instead of #FF8C1A.</li>
+    <li><b>4. Icon files:</b> edit <code>assets/Earshot.icon/icon.json</code> fill stops to #FB923C and #C2410C, redraw the wave-far layer as the flame, recolour layers to white, then update <code>earshot-logo.svg</code>; keep <code>menubar.svg</code> (ear plus one wave) as is.</li>
+    <li><b>5. Website:</b> dark charcoal default, 1 px hairlines, rounded cards, orange #F97316 with dark text and #C2410C on light sections, one headline treatment, flame-accent app screenshot as the hero, new icon in the header.</li>
+    <li><b>6. Order of work:</b> accent and icon first (the app is the source of truth), then regenerate the site screenshots from the app, then restyle the site, so the three never drift again.</li>
+  </ol>
+</div>
+</main>
+</body>
+</html>

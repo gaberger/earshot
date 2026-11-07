@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FB923C"/><stop offset="0.55" stop-color="#F97316"/><stop offset="1" stop-color="#C2410C"/></linearGradient>
+    <linearGradient id="fl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFD28A"/></linearGradient>
+    <radialGradient id="glow" cx="0.7" cy="0.25" r="0.8"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#tile)"/>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#glow)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="44">
+    <path d="M 372 410 A 150 150 0 0 0 372 610"/>
+  </g>
+  <path d="M 214 296 C 222 380 288 430 288 560 C 288 660 254 724 206 724 C 156 724 124 668 126 600 C 128 548 162 528 174 480 C 184 440 168 372 214 296 Z" fill="url(#fl)" stroke="url(#fl)" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M 206 520 C 210 574 244 596 244 650 C 244 690 228 712 206 712 C 182 712 166 690 168 652 C 170 620 194 600 200 570 C 203 552 205 536 206 520 Z" fill="#F97316"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="64">
+    <path d="M 470 420 C 470 300 560 236 650 236 C 762 236 840 318 840 426 C 840 528 772 566 742 626 C 712 690 724 770 640 800 C 580 822 530 794 516 752"/>
+    <path d="M 572 440 C 572 382 612 342 660 342 C 714 342 750 384 742 436 C 736 478 700 496 680 528"/>
+  </g>
+</svg>

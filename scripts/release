@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Cuts an Earshot release: checks, bumps VERSION, commits with the notes, tags vX.Y.Z, optionally pushes.
+#
+#   scripts/release <X.Y.Z | patch | minor | major> [-m "summary"] [--dry-run] [--push]
+#
+# Write docs/releases/<version>.md first (it may be uncommitted; it goes in the release commit).
+# Pushing the tag makes CI build the disk image and publish the GitHub release.
+# RELEASE_SKIP_TESTS=1 skips the test run (used by scripts/release-test only).
+set -euo pipefail
+
+die() { echo "release: $*" >&2; exit 1; }
+
+target= summary= dry=0 push=0
+while (( $# )); do
+  case $1 in
+    -m) summary=${2:?-m needs a summary}; shift ;;
+    --dry-run) dry=1 ;;
+    --push) push=1 ;;
+    -*) die "unknown option $1" ;;
+    *) [[ -z $target ]] || die "one version only"; target=$1 ;;
+  esac
+  shift
+done
+[[ -n $target ]] || die "usage: scripts/release <X.Y.Z|patch|minor|major> [-m summary] [--dry-run] [--push]"
+
+cd "$(git rev-parse --show-toplevel)"
+current=$(tr -d '[:space:]' < VERSION)
+[[ $current =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "VERSION '$current' is not MAJOR.MINOR.PATCH"
+maj=$((10#${BASH_REMATCH[1]})) min=$((10#${BASH_REMATCH[2]})) pat=$((10#${BASH_REMATCH[3]}))  # 10#: a leading 0 is not octal
+
+case $target in
+  patch) version=$maj.$min.$((pat+1)) ;;
+  minor) version=$maj.$((min+1)).0 ;;
+  major) version=$((maj+1)).0.0 ;;
+  *) version=$target ;;
+esac
+[[ $version =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "'$version' is not MAJOR.MINOR.PATCH"
+n=("$((10#${BASH_REMATCH[1]}))" "$((10#${BASH_REMATCH[2]}))" "$((10#${BASH_REMATCH[3]}))"); c=("$maj" "$min" "$pat")
+newer=0
+for i in 0 1 2; do
+  if (( n[i] > c[i] )); then newer=1; break; elif (( n[i] < c[i] )); then break; fi
+done
+(( newer )) || die "$version is not newer than $current"
+
+[[ $(git branch --show-current) == main ]] || die "release from main (on '$(git branch --show-current)')"
+notes=docs/releases/$version.md
+dirty=$(git status --porcelain --untracked-files=all | awk -v n="$notes" 'substr($0, 4) != n' || true)  # whole-path match, not substring
+[[ -z $dirty ]] || die "working tree is not clean (only $notes may be uncommitted):
+$dirty"
+[[ -s $notes ]] || die "write the release notes first: $notes"
+grep -qF "Earshot-$version.dmg" "$notes" || die "$notes must name Earshot-$version.dmg"
+grep -qF "\`$version\`" "$notes" || die "$notes must say the About version reads \`$version\`"
+! git rev-parse -q --verify "refs/tags/v$version" >/dev/null || die "tag v$version already exists"
+
+if [[ ${RELEASE_SKIP_TESTS:-0} != 1 ]]; then
+  bash EarshotApp/Tests/run.sh >/dev/null || die "tests failed; not releasing"
+fi
+
+if (( dry )); then echo "release: $current -> $version looks good (dry run, nothing changed)"; exit 0; fi
+
+echo "$version" > VERSION
+git add VERSION "$notes"
+git commit -q -m "Release $version${summary:+: $summary}"
+git tag "v$version"
+echo "release: committed and tagged v$version"
+
+remotes=()
+for r in origin github; do git remote get-url "$r" >/dev/null 2>&1 && remotes+=("$r"); done
+if (( push )); then
+  (( ${#remotes[@]} )) || die "no origin or github remote to push to (the tag is made locally)"
+  for r in ${remotes[@]+"${remotes[@]}"}; do git push "$r" main "v$version"; done
+else
+  echo "release: not pushed. To publish:"
+  for r in ${remotes[@]+"${remotes[@]}"}; do echo "  git push $r main v$version"; done
+fi

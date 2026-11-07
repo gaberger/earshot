@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Speak Claude Code's reply aloud (ADR-2611071600). Stdlib only.
+
+Usage: earshot-speak            hook mode (Stop hook JSON on stdin)
+       earshot-speak plain      print the speakable form of stdin
+       earshot-speak on|off|status|stop
+"""
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+
+FALLBACK = "Done. The details are on screen."
+LIMIT = 280
+
+
+def state_dir():
+    d = os.environ.get("EARSHOT_STATE_DIR") or os.path.join(os.path.expanduser("~"), ".earshot")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def speakable(text):
+    if not text or not text.strip():
+        return ""
+    lines = []
+    in_fence = False
+    for raw in text.splitlines():
+        s = raw.strip()
+        if s.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or s.startswith("|"):
+            continue
+        s = re.sub(r"^(?:#+\s*|>\s*|[-*+]\s+|\d+\.\s+)", "", s)
+        s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)
+        s = re.sub(r"https?://\S+", "", s)
+        s = s.replace("`", "")
+        s = re.sub(r"(?<![\w/])(\*\*|__|\*|_)(\S(?:.*?\S)?)\1(?!\w)", r"\2", s)
+        lines.append(s)
+    out = re.sub(r"\s+", " ", " ".join(lines)).strip()
+    if not out:
+        return FALLBACK
+    return cap(out)
+
+
+def cap(text):
+    if len(text) <= LIMIT:
+        return text
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    if len(sentences[0]) > LIMIT:
+        head = text[: LIMIT - 1]
+        if " " in head:
+            head = head.rsplit(" ", 1)[0]
+        return head.rstrip(" ,;:.!?") + "."
+    out = sentences[0]
+    for s in sentences[1:]:
+        if len(out) + 1 + len(s) > LIMIT:
+            break
+        out += " " + s
+    return out
+
+
+def blocks_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [b.get("text", "") for b in content
+                 if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)]
+        return "\n".join(p for p in parts if p.strip())
+    return ""
+
+
+def from_transcript(path):
+    entries = []
+    with open(path, encoding="utf-8") as f:
+        for ln in f:
+            try:
+                e = json.loads(ln)
+            except ValueError:
+                continue
+            if isinstance(e, dict):
+                entries.append(e)
+    last_user = -1
+    for i, e in enumerate(entries):
+        if e.get("type") == "user":
+            last_user = i
+    for e in reversed(entries[last_user + 1:]):
+        if e.get("type") == "assistant":
+            msg = e.get("message")
+            t = blocks_text(msg.get("content") if isinstance(msg, dict) else None)
+            if t.strip():
+                return t
+    return ""
+
+
+def pid_path():
+    return os.path.join(state_dir(), "speak.pid")
+
+
+def is_our_speech(pid):
+    want = os.path.basename(os.environ.get("EARSHOT_SAY") or "say")
+    try:
+        r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)],
+                           capture_output=True, text=True)
+    except Exception:
+        return False
+    return any(os.path.basename(tok) == want for tok in r.stdout.split())
+
+
+def stop_speech():
+    p = pid_path()
+    try:
+        with open(p) as f:
+            pid = int(f.read().strip())
+        if pid > 0 and is_our_speech(pid):
+            try:
+                os.killpg(pid, signal.SIGTERM)
+            except OSError:
+                os.kill(pid, signal.SIGTERM)
+    except Exception:
+        pass
+    try:
+        os.remove(p)
+    except OSError:
+        pass
+
+
+def speak(text):
+    stop_speech()
+    cmd = [os.environ.get("EARSHOT_SAY") or "say"]
+    if os.environ.get("EARSHOT_VOICE"):
+        cmd += ["-v", os.environ["EARSHOT_VOICE"]]
+    if os.environ.get("EARSHOT_RATE"):
+        cmd += ["-r", os.environ["EARSHOT_RATE"]]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        p.stdin.write(text.encode("utf-8"))
+        p.stdin.close()
+    except Exception:
+        pass
+    with open(pid_path(), "w") as f:
+        f.write(str(p.pid))
+
+
+def read_flag(path):
+    """The parsed flag dict, or None when the flag is missing, empty, unreadable or not an object."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.loads(f.read())
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def hook():
+    flag = read_flag(os.path.join(state_dir(), "voice-on"))
+    if flag is None:
+        return
+    payload = json.loads(sys.stdin.read())
+    if flag.get("all") is not True:
+        bound = flag.get("session_id")
+        if not isinstance(bound, str) or not bound or payload.get("session_id") != bound:
+            return
+    msg = payload.get("last_assistant_message")
+    if isinstance(msg, str) and msg.strip():
+        raw = msg
+    elif isinstance(payload.get("transcript_path"), str):
+        raw = from_transcript(payload["transcript_path"])
+    else:
+        raw = ""
+    text = speakable(raw)
+    if text:
+        speak(text)
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "":
+        try:
+            hook()
+        except BaseException:
+            pass
+        return 0
+    flag = os.path.join(state_dir(), "voice-on")
+    if cmd == "plain":
+        sys.stdout.write(speakable(sys.stdin.read()) + "\n")
+    elif cmd == "on":
+        sid = os.environ.get("CLAUDE_CODE_SESSION_ID")
+        if len(sys.argv) > 2 and sys.argv[2] == "--all":
+            data = {"all": True}
+        elif sid:
+            data = {"session_id": sid}
+        else:
+            sys.stderr.write("earshot-speak: no Claude Code session id; run `on` from inside a "
+                             "Claude Code session, or use `on --all`.\n")
+            return 2
+        with open(flag, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    elif cmd == "off":
+        try:
+            os.remove(flag)
+        except OSError:
+            pass
+    elif cmd == "status":
+        data = read_flag(flag)
+        if data is None:
+            print("off")
+        else:
+            print("on")
+            sid = os.environ.get("CLAUDE_CODE_SESSION_ID")
+            if data.get("all") is True:
+                print("all sessions")
+            elif sid and data.get("session_id") == sid:
+                print("bound to this session")
+            else:
+                print("bound to another session")
+    elif cmd == "stop":
+        stop_speech()
+    else:
+        sys.stderr.write("usage: earshot-speak [plain|on|off|status|stop]\n")
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

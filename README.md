@@ -36,6 +36,7 @@ all on-device, with no account, no cloud and no internet connection.
 | ✨ **Summarize** | Nine Plaud-style templates, from meeting minutes to sales calls, with action items. |
 | ✏️ **Edit** | Fix the summary in a rich-text editor: headings, bold, bullets, checkboxes. Edited summaries are never replaced without asking. |
 | 🌍 **Translate** | Turns speech in other languages into English text. |
+| ⌨️ **Dictate** | Hold a shortcut (<kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> unless you change it) in any app, speak, let go, and Earshot types what you said, into a form, an email, anywhere. A small **Listening…** indicator shows while it hears you. Off until you turn it on in Settings. |
 | 🗂️ **Timeline** | Every recording by day, named by its summary or by you. |
 | 🧭 **Menu bar** | The ear at the top of the screen: record without opening the window, see the timer, jump to recent recordings. |
 | 📊 **Status bar** | What Earshot is doing now, plus live CPU, GPU and memory use, along the bottom of the window. |
@@ -87,6 +88,51 @@ Every summary starts with the date, length and speakers, and ends with action it
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the open tab |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings: microphone, speakers, default template |
 | <kbd>⌘</kbd> <kbd>?</kbd> | How Earshot works |
+| <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> | Dictate: hold, speak, release (in any app, once turned on in Settings; you can change the keys) |
+
+### Dictation
+
+Turn on **Settings → Dictation → Dictate into any app**. Earshot asks for **Microphone** and
+**Accessibility** access (System Settings → Privacy & Security); Accessibility is what lets it type
+for you. Then click into any text field, hold <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd>, speak, and
+let go. A second or two later the text appears where your cursor is.
+
+- **Change the shortcut** under **Settings → Dictation → Shortcut**: click it and press the keys you
+  want. It must include <kbd>⌃</kbd> or <kbd>⌥</kbd> (or be a function key such as <kbd>F5</kbd>), so it
+  never steals ordinary typing, and shortcuts macOS already owns can't be chosen. **Reset** brings back
+  the default. If another app already uses your choice, Earshot says so.
+- **Hold, or tap.** By default you hold the keys while you talk. Under **Settings → Dictation → Mode**
+  you can switch to **Tap to start, tap to stop**, which is easier for long dictations. A change
+  applies from your next dictation.
+- **Fix words it mishears** under **Settings → Dictation → Corrections**: one per line, as
+  `ear shot => Earshot`. Matching ignores case and only hits whole words, and the longest phrase wins.
+- **Tidy up what I say** under **Settings → Dictation → Tidy up** (off by default) removes ums and stutters and fixes punctuation using Apple's on-device model. It may reword slightly; if the model is unavailable, slow or drifts from what you said, your words are typed as spoken.
+- **The indicator.** While you hold the keys a small **Listening…** pill with a live level bar floats
+  near the bottom of the screen you're on, so you can see the microphone is hearing you. It switches
+  to **Transcribing…** after you let go, then disappears as the text arrives. It never takes focus
+  from the field you're typing into.
+- **The window outline.** While you dictate, a little fire licks around the edge of the window your
+  words will be typed into (low embers while it transcribes), so you can see where they will land. Earshot
+  reads only that window's position and size, never its title or contents. With **Reduce Motion** on you
+  get a plain static border instead. Turn it off under **Settings → Dictation → Highlight the window I am
+  dictating into**.
+
+- **Press Return after typing** under **Settings → Dictation → Submit** (off by default) presses Return once the text is typed, so a message sends or a form submits. It does not press Return when there is no text, when the text was left on the clipboard because Earshot can't type yet, or when a secure input field is active.
+- It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
+- **It never types into the wrong window.** Earshot remembers which window you started dictating in. If you switch to another window or app before the text is ready, it does not paste there: the text is put on the clipboard and a notice says so, so you can press ⌘V where you want it.
+- **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved.
+
+### Notes: your own voice notes
+
+**Notes** is a separate area, with its own **Record a note** button. Press it, speak, press **Stop**, and the note is transcribed on this Mac and saved in the Notes list, grouped by day, with Copy and Delete on each. Nothing is typed into other apps. Only the text is kept, in `~/Library/Application Support/Earshot/notes.json`; the audio is deleted at once. Corrections from **Dictation** apply to notes too. A note cannot start while a meeting is being recorded or while you are dictating. **Clear all** deletes every note.
+
+Earshot now has three separate functions: **Recordings** (meetings and calls), **Notes** (voice notes you record in Earshot) and **Dictation** (typing into any app).
+- The microphone is open only while you hold the keys. A tap shorter than a third of a second does
+  nothing, and a hold stops by itself after a minute.
+- It types by pasting, then puts back whatever was on your clipboard.
+- It won't type into password fields, and it's off while a meeting is being recorded.
+- The app isn't notarized, so macOS may forget the Accessibility permission after an update. If
+  Dictation stops typing, switch Earshot off and on again in the Accessibility list.
 
 ## 🚀 Installation
 
@@ -249,6 +295,44 @@ speakers meeting.m4a            # add speaker labels to meeting.txt
 speakers meeting.m4a -n 3       # exactly 3 speakers
 ```
 
+## 🔌 Use Earshot from an agent (MCP)
+
+`scripts/earshot-mcp` is a small stdio [MCP](https://modelcontextprotocol.io) server that lets an agent read your recordings. It needs only the system Python 3, starts no daemon and opens no port.
+
+```bash
+claude mcp add --scope user earshot -- /abs/path/to/earshot/scripts/earshot-mcp
+# recordings somewhere else (name first: -e takes several values and would swallow it):
+claude mcp add --scope user earshot -e WHISPER_REC_DIR=/path -- /abs/path/to/earshot/scripts/earshot-mcp
+```
+
+The default scope is project-local; `--scope user` makes it available everywhere.
+
+It exposes four read-only tools: `list_recordings`, `get_transcript`, `get_summary` and `search`.
+
+**Privacy:** it exposes what you already keep on disk to the agent you connect it to. That agent may send the text to its own provider, which is your choice and outside Earshot's "nothing leaves this Mac" promise.
+
+Tool output is untrusted text from audio, so an agent should treat it as data, not instructions. Symlinked recording files are refused. A file still being written may be read as a prefix, and a transcript may briefly be newer than its summary because the files are written separately.
+
+## 🔊 Hear replies spoken (voice loop)
+
+This is for Claude Code. `scripts/earshot-speak` reads Claude's reply aloud when a turn ends, using the macOS `say` command locally. Nothing leaves this Mac.
+
+```bash
+scripts/earshot-speak on        # speak replies for the session you run this from
+scripts/earshot-speak on --all  # speak replies for every session
+scripts/earshot-speak off       # stop speaking replies
+scripts/earshot-speak status    # "on" or "off", then which session it is bound to
+scripts/earshot-speak stop      # cut off the reply being spoken now
+```
+
+It is off until you run `on`. `on` binds the voice to the session you run it from, so you must run it from inside the Claude Code session you are talking to, for example by typing `!scripts/earshot-speak on` (the exclamation-mark prefix) in the prompt. Outside a session it refuses and tells you so. `on --all` speaks for every session. Other windows stay quiet; running `on` in another session moves the voice there. Add the Stop hook to your Claude Code settings:
+
+```json
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/ABSOLUTE/PATH/TO/earshot/scripts/earshot-speak"}]}]}}
+```
+
+Code blocks, tables and URLs are skipped, and long replies are cut to about 280 characters. **Anyone nearby hears replies while it is on.** Pressing the dictation hotkey also stops the voice, so you can talk over it; this needs the rebuilt app.
+
 ## 🔬 Accuracy notes
 
 > [!TIP]
@@ -273,17 +357,21 @@ MAJOR for changes that break how things worked before. `build.sh` stamps it into
 build number (the commit count, so it only goes up) and the commit hash, marked `-dirty` when
 built from uncommitted changes.
 
-To release:
+To release, write the notes in `docs/releases/<version>.md` (they must name `Earshot-<version>.dmg`
+and say the About version reads `<version>`), then, from `main`:
 
 ```bash
-echo 1.1.0 > VERSION
-git commit -am "Earshot 1.1.0"
-git tag v1.1.0
-git push origin main --tags && git push github main --tags
+scripts/release minor -m "what's new"    # or patch, major, or an exact version like 1.1.0
+scripts/release minor --dry-run          # check everything, change nothing
+scripts/release minor -m "..." --push    # also push main and the tag to origin and github
 ```
 
+The script refuses unless you're on `main` with a clean tree, the notes exist, the version is newer
+and the tests pass. It bumps `VERSION`, commits it with the notes, and tags `v<version>`. Without
+`--push` it prints the push commands. `scripts/release-test` checks the script itself.
+
 The tag makes CI build the disk image and publish it as a
-[GitHub release](https://github.com/gaberger/earshot/releases) with notes from the commits.
+[GitHub release](https://github.com/gaberger/earshot/releases) with the notes file.
 CI stops if the tag and `VERSION` don't match.
 
 ## 🗂️ Project layout

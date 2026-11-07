@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""Gate for ADR-2611071600: drives scripts/earshot-speak with a fake `say`.
+
+Run: python3 -I scripts/earshot-speak-test
+Every expected string is written out by hand, not computed from the script's own rules.
+"""
+import json
+import os
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCRIPT = os.path.join(HERE, "earshot-speak")
+FLOOR = 56
+checks = 0
+failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", detail)
+
+
+def run(args, stdin="", env=None, timeout=15):
+    # The test may itself run inside a Claude Code session; its id must not leak into the script.
+    e = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_SESSION_ID"}
+    e.update(env or {})
+    return subprocess.run([sys.executable, "-I", SCRIPT] + args, input=stdin, capture_output=True,
+                          text=True, env=e, timeout=timeout)
+
+
+def plain(text):
+    r = run(["plain"], stdin=text)
+    return r.stdout.rstrip("\n") if r.returncode == 0 else "<exit %d: %s>" % (r.returncode, r.stderr[:200])
+
+
+def wait_for(path, seconds=4.0):
+    end = time.time() + seconds
+    while time.time() < end:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    # a zombie still answers signal 0; ask ps for its state
+    st = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    return bool(st) and not st.startswith("Z")
+
+
+def main():
+    if not os.path.exists(SCRIPT):
+        print("FAIL scripts/earshot-speak does not exist")
+        sys.exit(1)
+
+    # MARK: the speakable-text rules
+    check("plain text is unchanged", plain("Hello world.") == "Hello world.")
+    check("a fenced code block is dropped",
+          plain("Run this:\n```bash\nls -la\n```\nThen done.") == "Run this: Then done.")
+    check("inline code keeps its words, not the backticks", plain("Use `hexa go` now.") == "Use hexa go now.")
+    check("a link keeps its text", plain("See [the docs](https://x.example/z) now.") == "See the docs now.")
+    check("a bare URL is dropped", plain("Go to https://example.com/a now.") == "Go to now.")
+    check("headers, bold and italics lose their marks", plain("# Title\n**Bold** and _it_.") == "Title Bold and it.")
+    check("table lines are dropped", plain("| a | b |\n|---|---|\n| 1 | 2 |\nAfter.") == "After.")
+    check("list bullets lose their markers", plain("- one\n- two") == "one two")
+    check("numbered list markers are dropped", plain("1. first\n2. second") == "first second")
+    check("file paths are left alone", plain("Edited scripts/earshot-speak now.") == "Edited scripts/earshot-speak now.")
+    check("blank lines and runs of spaces collapse", plain("a   b\n\n\nc") == "a b c")
+    check("empty input is empty", plain("") == "")
+    check("whitespace-only input is empty", plain("  \n\t ") == "")
+    check("a reply of only code gets the fallback sentence",
+          plain("```python\nprint(1)\n```") == "Done. The details are on screen.")
+    check("a reply of only a table gets the fallback sentence",
+          plain("| a | b |\n|---|---|\n| 1 | 2 |") == "Done. The details are on screen.")
+    long_text = " ".join("Sentence number %d is right here." % i for i in range(1, 21))
+    cut = plain(long_text)
+    check("a long reply is cut to 280 characters or fewer", 0 < len(cut) <= 280, str(len(cut)))
+    check("the cut falls on a sentence end and keeps the start",
+          cut.startswith("Sentence number 1 is right here.") and cut.endswith("."), cut[-40:])
+    one_long = "word " * 200
+    check("one endless sentence is still cut to 280 or fewer", 0 < len(plain(one_long)) <= 280)
+
+    # MARK: the hook, with a fake say
+    with tempfile.TemporaryDirectory() as root:
+        state = os.path.join(root, "state")
+        out = os.path.join(root, "said.txt")
+        fake = os.path.join(root, "fake-say")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\ncat > "$EARSHOT_TEST_OUT"\n[ -n "$EARSHOT_TEST_HANG" ] && sleep 60\nexit 0\n')
+        os.chmod(fake, os.stat(fake).st_mode | stat.S_IXUSR)
+        env = {"EARSHOT_STATE_DIR": state, "EARSHOT_SAY": fake, "EARSHOT_TEST_OUT": out}
+
+        def hook(payload, extra=None):
+            if os.path.exists(out):
+                os.remove(out)
+            e = dict(env)
+            e.update(extra or {})
+            if isinstance(payload, dict):
+                # Hooks always carry a session id. Default to the main test session; pass
+                # "session_id": None to send a payload with no id at all.
+                payload = dict(payload)
+                sid = payload.pop("session_id", "sess-main")
+                if sid is not None:
+                    payload["session_id"] = sid
+            return run([], stdin=payload if isinstance(payload, str) else json.dumps(payload), env=e)
+
+        main_env = dict(env, CLAUDE_CODE_SESSION_ID="sess-main")
+        other_env = dict(env, CLAUDE_CODE_SESSION_ID="sess-other")
+        flag = os.path.join(state, "voice-on")
+
+        r = hook({"last_assistant_message": "It works."})
+        time.sleep(0.6)
+        check("without the flag file nothing is spoken", not os.path.exists(out))
+        check("without the flag file the hook exits 0 and prints nothing", r.returncode == 0 and r.stdout == "", repr(r.stdout))
+
+        on = run(["on"], env=main_env)
+        check("`on` creates the flag file", on.returncode == 0 and os.path.exists(flag))
+        st = run(["status"], env=main_env).stdout.split("\n")
+        check("`status` says on", st[0].strip() == "on", repr(st))
+        check("`status` says it is bound to this session", "this session" in " ".join(st[1:]), repr(st))
+
+        r = hook({"last_assistant_message": "It works. See `x`."})
+        check("with the flag, the reply is spoken", wait_for(out) and open(out).read().strip() == "It works. See x.",
+              open(out).read() if os.path.exists(out) else "no output")
+        check("the hook exits 0 and prints nothing when it speaks", r.returncode == 0 and r.stdout == "", repr(r.stdout))
+
+        # MARK: only the session the voice is bound to speaks (the voice is bound to sess-main)
+        hook({"last_assistant_message": "Reply from a different window.", "session_id": "sess-other"})
+        time.sleep(0.6)
+        check("another session's reply is not spoken", not os.path.exists(out))
+        hook({"last_assistant_message": "A reply with no session id.", "session_id": None})
+        time.sleep(0.6)
+        check("a reply with no session id is not spoken while bound", not os.path.exists(out))
+        st = run(["status"], env=other_env).stdout.split("\n")
+        check("`status` from another session says the voice is bound elsewhere",
+              st[0].strip() == "on" and "another session" in " ".join(st[1:]), repr(st))
+        refused = run(["on"], env={"EARSHOT_STATE_DIR": state})
+        check("`on` with no session id and no --all refuses", refused.returncode != 0 and refused.stderr.strip() != "",
+              repr((refused.returncode, refused.stderr[:120])))
+        check("a refused `on` leaves the binding alone", "sess-main" in open(flag).read(), open(flag).read())
+        run(["on"], env=other_env)
+        hook({"last_assistant_message": "Still the old window."})
+        time.sleep(0.6)
+        check("running `on` elsewhere moves the voice: the old session goes quiet", not os.path.exists(out))
+        hook({"last_assistant_message": "Now the new window.", "session_id": "sess-other"})
+        check("running `on` elsewhere moves the voice: the new session speaks",
+              wait_for(out) and open(out).read().strip() == "Now the new window.",
+              open(out).read() if os.path.exists(out) else "no output")
+        allon = run(["on", "--all"], env={"EARSHOT_STATE_DIR": state})
+        check("`on --all` works without a session id", allon.returncode == 0 and os.path.exists(flag), repr(allon.stderr[:120]))
+        hook({"last_assistant_message": "Everyone one.", "session_id": "sess-main"})
+        check("with --all the first session speaks", wait_for(out) and open(out).read().strip() == "Everyone one.")
+        hook({"last_assistant_message": "Everyone two.", "session_id": "sess-zzz"})
+        check("with --all any other session speaks too", wait_for(out) and open(out).read().strip() == "Everyone two.")
+        st = run(["status"], env=env).stdout.split("\n")
+        check("`status` says all sessions", st[0].strip() == "on" and "all sessions" in " ".join(st[1:]), repr(st))
+        open(flag, "w").close()
+        hook({"last_assistant_message": "From an empty flag."})
+        time.sleep(0.6)
+        check("an empty flag file counts as off", not os.path.exists(out))
+        check("`status` says off for an empty flag file", run(["status"], env=env).stdout.split()[0] == "off")
+        with open(flag, "w") as f:
+            f.write("{not json")
+        hook({"last_assistant_message": "From a broken flag."})
+        time.sleep(0.6)
+        check("an unreadable flag file counts as off", not os.path.exists(out))
+        run(["on"], env=main_env)
+        hook({"last_assistant_message": "Back in the main window."})
+        check("binding the voice back to the first session works",
+              wait_for(out) and open(out).read().strip() == "Back in the main window.")
+
+        # transcript input
+        tr = os.path.join(root, "t.jsonl")
+
+        def line(kind, content):
+            return json.dumps({"type": kind, "message": {"role": kind, "content": content}})
+
+        with open(tr, "w") as f:
+            f.write(line("user", "first question") + "\n")
+            f.write(line("assistant", [{"type": "text", "text": "Old reply."}]) + "\n")
+            f.write(line("user", "second question") + "\n")
+            f.write(line("assistant", [{"type": "text", "text": "Checking now."}, {"type": "tool_use", "name": "Bash", "input": {}}]) + "\n")
+            f.write(line("assistant", [{"type": "text", "text": "New reply."}]) + "\n")
+        hook({"transcript_path": tr})
+        check("the transcript's last assistant text is spoken", wait_for(out) and open(out).read().strip() == "New reply.",
+              open(out).read() if os.path.exists(out) else "no output")
+
+        with open(tr, "w") as f:
+            f.write(line("user", "q1") + "\n")
+            f.write(line("assistant", [{"type": "text", "text": "Old reply."}]) + "\n")
+            f.write(line("user", "q2") + "\n")
+            f.write(line("assistant", [{"type": "tool_use", "name": "Bash", "input": {}}]) + "\n")
+        hook({"transcript_path": tr})
+        time.sleep(0.6)
+        check("an earlier turn's reply is never spoken for a later turn", not os.path.exists(out))
+
+        # never fail
+        r = hook("this is not json")
+        check("malformed hook input exits 0 silently", r.returncode == 0 and r.stdout == "", repr((r.returncode, r.stdout)))
+        r = hook({"transcript_path": os.path.join(root, "missing.jsonl")})
+        check("a missing transcript exits 0 silently", r.returncode == 0 and r.stdout == "", repr((r.returncode, r.stdout)))
+        r = hook({})
+        check("an empty payload exits 0 silently", r.returncode == 0 and r.stdout == "")
+        r = hook({"last_assistant_message": "Hi."}, {"EARSHOT_SAY": os.path.join(root, "no-such-say")})
+        check("a missing say command exits 0 silently", r.returncode == 0 and r.stdout == "", repr((r.returncode, r.stdout, r.stderr[:100])))
+
+        # one voice at a time, and stop
+        hook({"last_assistant_message": "First long reply."}, {"EARSHOT_TEST_HANG": "1"})
+        pidfile = os.path.join(state, "speak.pid")
+        got = wait_for(pidfile)
+        first = int(open(pidfile).read().strip()) if got else 0
+        check("a speaking process is recorded and alive", first > 0 and alive(first), str(first))
+        hook({"last_assistant_message": "Second reply."}, {"EARSHOT_TEST_HANG": "1"})
+        time.sleep(0.8)
+        check("a new reply stops the previous speech", first > 0 and not alive(first))
+        got = wait_for(pidfile)
+        second = int(open(pidfile).read().strip()) if got else 0
+        check("the new speech is the one now recorded", second > 0 and second != first and alive(second), str((first, second)))
+        s = run(["stop"], env=env)
+        time.sleep(0.6)
+        check("`stop` ends the speech", s.returncode == 0 and second > 0 and not alive(second))
+
+        # A pid file outlives the speech it names. Once the pid is reused, killing it would hit a
+        # stranger, so neither `stop` nor a new reply may signal a process that is not our say.
+        victim = subprocess.Popen(["sleep", "60"], start_new_session=True)
+        try:
+            with open(pidfile, "w") as f:
+                f.write(str(victim.pid))
+            run(["stop"], env=env)
+            time.sleep(0.5)
+            check("`stop` leaves an unrelated process named in a stale pid file alone", victim.poll() is None)
+            check("`stop` clears the stale pid file", not os.path.exists(pidfile))
+            with open(pidfile, "w") as f:
+                f.write(str(victim.pid))
+            hook({"last_assistant_message": "Another reply."})
+            time.sleep(0.8)
+            check("a new reply leaves an unrelated process in a stale pid file alone", victim.poll() is None)
+        finally:
+            victim.kill()
+            victim.wait()
+        run(["stop"], env=env)
+
+        off = run(["off"], env=env)
+        check("`off` removes the flag file", off.returncode == 0 and not os.path.exists(os.path.join(state, "voice-on")))
+        check("`status` says off", run(["status"], env=env).stdout.strip() == "off")
+        check("`off` twice is not an error", run(["off"], env=env).returncode == 0)
+
+    print("%d checks, %d failed" % (checks, failures))
+    if checks < FLOOR:
+        print("VACUOUS: only %d checks ran, need %d" % (checks, FLOOR))
+        sys.exit(1)
+    sys.exit(0 if failures == 0 else 1)
+
+
+if __name__ == "__main__":
+    main()

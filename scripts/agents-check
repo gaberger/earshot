@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Checks the agent and skill library (ADR-2611071900). Exit 0 means every agent and earshot-* skill is
+# well formed and cites only paths that exist. It fails itself if it finds too little to check.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+python3 -I - <<'PY'
+import os, re, sys, glob, json
+
+def frontmatter(path):
+    text = open(path, encoding="utf8").read()
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    if not m: return None, text
+    fm = {}
+    for line in m.group(1).split("\n"):
+        if ":" in line and not line.startswith(" "):
+            k, v = line.split(":", 1); fm[k.strip()] = v.strip()
+    return fm, text[m.end():]
+
+problems = []
+agents = sorted(glob.glob(".claude/agents/*.md"))
+skills = sorted(glob.glob(".claude/skills/earshot-*/SKILL.md"))
+if len(agents) < 3: problems.append(f"VACUOUS: only {len(agents)} agents, need 3")
+if len(skills) < 5: problems.append(f"VACUOUS: only {len(skills)} earshot skills, need 5")
+
+allowed_tools = {"Read", "Grep", "Glob"}
+def check_paths(path, body):
+    for tok in re.findall(r"`([^`\n]+)`", body):
+        if re.match(r"^(EarshotApp|scripts|docs|site|assets)/", tok) and not re.search(r"[*<>{}$|]", tok):
+            tok = tok.split(" ")[0].rstrip(".,:;)")
+            if not os.path.exists(tok): problems.append(f"{path}: cites `{tok}`, which does not exist")
+
+for p in agents:
+    fm, body = frontmatter(p)
+    name = os.path.basename(p)[:-3]
+    if fm is None: problems.append(f"{p}: no frontmatter"); continue
+    if fm.get("name") != name: problems.append(f"{p}: name '{fm.get('name')}' must be '{name}'")
+    if len(fm.get("description", "")) < 40: problems.append(f"{p}: description is missing or under 40 characters")
+    tools = {t.strip() for t in fm.get("tools", "").split(",") if t.strip()}
+    if not tools: problems.append(f"{p}: no tools line (an agent must say what it may use)")
+    if tools - allowed_tools: problems.append(f"{p}: tools {sorted(tools - allowed_tools)} are not read-only")
+    check_paths(p, body)
+
+for p in skills:
+    fm, body = frontmatter(p)
+    name = os.path.basename(os.path.dirname(p))
+    if fm is None: problems.append(f"{p}: no frontmatter"); continue
+    if fm.get("name") != name: problems.append(f"{p}: name '{fm.get('name')}' must be '{name}'")
+    d = fm.get("description", "")
+    if not d: problems.append(f"{p}: empty description")
+    elif "Use when" not in d: problems.append(f"{p}: description must say 'Use when ...'")
+    check_paths(p, body)
+
+mem = ".hexa/memory.jsonl"
+n = 0
+if os.path.exists(mem):
+    for line in open(mem, encoding="utf8"):
+        try:
+            if json.loads(line).get("key", "").startswith("lesson:"): n += 1
+        except Exception: pass
+if n < 6: problems.append(f"project memory has {n} lesson: entries, need 6 (hexa memory store lesson:<topic> ...)")
+
+for q in problems: print("FAIL", q)
+if problems: sys.exit(1)
+print(f"PASS {len(agents)} agents, {len(skills)} earshot skills, {n} lessons")
+PY
