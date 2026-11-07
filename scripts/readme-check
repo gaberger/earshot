@@ -13,7 +13,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FLOOR = 113
+FLOOR = 134
 checks = 0
 failures = 0
 DOCS = ["INSTALL", "GUIDE", "PRIVACY", "AGENTS", "DEVELOPMENT"]
@@ -164,6 +164,28 @@ for phrase in ["earshot-mcp", "earshot-speak", "read-only", "untrusted", "list_r
     check("AGENTS keeps: %s" % phrase, phrase in A)
 for phrase in ["scripts/release minor", "docs/adrs", "docs/releases", "Tests/run.sh", "build.sh", "assets/badges"]:
     check("DEVELOPMENT keeps: %s" % phrase, phrase in D)
+
+# MARK: the security policy (GitHub shows SECURITY.md under the Security tab)
+sec = read("SECURITY.md")
+check("SECURITY.md exists at the repository root", sec is not None)
+S = sec or ""
+sl = S.lower()
+check("SECURITY.md is between 30 and 100 lines", 30 <= len(S.splitlines()) <= 100, len(S.splitlines()))
+check("SECURITY.md has exactly one H1", sum(1 for h in headings(S) if h.startswith("# ")) == 1)
+check("SECURITY.md has no emoji", not EMOJI.search(S))
+for name, rx in [("Supported versions", r"Supported versions"), ("Reporting a vulnerability", r"Reporting a vulnerability"),
+                 ("what to expect", r"What to expect|Response"), ("scope", r"Scope")]:
+    check("SECURITY.md has a heading for: %s" % name, any(re.search(rx, h, re.I) for h in headings(S)))
+check("SECURITY.md points to the private advisory form", "github.com/gaberger/earshot/security/advisories/new" in S)
+check("SECURITY.md says not to open a public issue for a vulnerability", "public issue" in sl)
+check("SECURITY.md says only the latest release is supported", "latest release" in sl)
+check("SECURITY.md contains no email address", re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", S) is None)
+for phrase in ["clipboard", "Accessibility", "MCP", "earshot-speak", "untrusted"]:
+    check("SECURITY.md scope covers: %s" % phrase, phrase.lower() in sl)
+check("SECURITY.md names what is out of scope, including the app not being notarized", "out of scope" in sl and "notarized" in sl)
+check("SECURITY.md describes what to expect without promising a fix date", "acknowledg" in sl and "days" in sl)
+check("README links to SECURITY.md", "SECURITY.md" in readme)
+check("docs/PRIVACY.md links to the security policy", "SECURITY.md" in P)
 
 print("%d checks, %d failed" % (checks, failures))
 if checks < FLOOR:
