@@ -419,6 +419,19 @@ final class DictationService: ObservableObject {
             key?.post(tap: .cgAnnotatedSessionEventTap)
         }
 
+        if DictationSubmit.shouldSendReturn(enabled: DictationPrefs.isSendReturnEnabled(), text: text,
+                                            pasted: true, secureInput: IsSecureEventInputEnabled()) {
+            Task { @MainActor in
+                // Let the paste land first; this is well inside the 0.5 s clipboard restore below.
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                for down in [true, false] {
+                    let key = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: down)  // Return
+                    key?.post(tap: .cgAnnotatedSessionEventTap)
+                }
+                log("Dictation: pressed Return.")
+            }
+        }
+
         Task { @MainActor in
             // Give the target app time to read the pasteboard before putting the old contents back.
             try? await Task.sleep(nanoseconds: 500_000_000)

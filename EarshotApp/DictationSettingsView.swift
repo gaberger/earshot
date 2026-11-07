@@ -92,6 +92,7 @@ struct DictationSettingsView: View {
     @AppStorage(DictationPrefs.toggle) private var toggle = false
     @AppStorage(DictationPrefs.cleanup) private var cleanup = false
     @AppStorage(DictationPrefs.highlight) private var highlight = true
+    @AppStorage(DictationPrefs.sendReturn) private var sendReturn = false
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
     @State private var trusted = AXIsProcessTrusted()
@@ -177,6 +178,15 @@ struct DictationSettingsView: View {
                     SettingsRow("Tidy up what I say",
                                 detail: "Removes ums and fixes punctuation using Apple's on-device model. Off by default; may reword slightly.") {
                         Toggle("", isOn: $cleanup)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                }
+
+                SettingsSection("Submit", dimmed: !enabled) {
+                    SettingsRow("Press Return after typing",
+                                detail: "Presses Return once the text is typed, so a message sends or a form submits. Off by default. Turn it on only if you want that.") {
+                        Toggle("", isOn: $sendReturn)
                             .labelsHidden()
                             .toggleStyle(.switch)
                     }

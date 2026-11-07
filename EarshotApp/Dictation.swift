@@ -26,6 +26,24 @@ enum DictationPrefs {
     static func isToggle(_ d: UserDefaults = .standard) -> Bool {
         d.object(forKey: toggle) as? Bool ?? false
     }
+
+    static let sendReturn = "dictationSendReturn"
+
+    /// Off by default. Any stored value that is not a Bool reads as off.
+    static func isSendReturnEnabled(_ d: UserDefaults = .standard) -> Bool {
+        // `as? Bool` would also accept the number 1, so check for a real boolean.
+        guard let number = d.object(forKey: sendReturn) as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
+    }
+}
+
+/// Whether to press Return after the dictated text was typed. Fails toward "do nothing".
+enum DictationSubmit {
+    static func shouldSendReturn(enabled: Bool, text: String, pasted: Bool, secureInput: Bool) -> Bool {
+        guard enabled, pasted, !secureInput else { return false }
+        return text.contains { !$0.isWhitespace }
+    }
 }
 
 /// Decides what push-to-talk dictation does next, from key events, transcription results and the

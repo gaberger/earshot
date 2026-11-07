@@ -45,3 +45,6 @@ python3 -I ../scripts/speakers-test
 # HighlightTests also uses @main and fails itself if fewer than 28 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift WindowHighlight.swift Tests/HighlightTests.swift -o "$out/highlight-tests"
 "$out/highlight-tests"
+# SubmitTests also uses @main and fails itself if fewer than 15 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SubmitTests.swift -o "$out/submit-tests"
+"$out/submit-tests"

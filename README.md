@@ -117,6 +117,7 @@ let go. A second or two later the text appears where your cursor is.
   get a plain static border instead. Turn it off under **Settings → Dictation → Highlight the window I am
   dictating into**.
 
+- **Press Return after typing** under **Settings → Dictation → Submit** (off by default) presses Return once the text is typed, so a message sends or a form submits. It does not press Return when there is no text, when the text was left on the clipboard because Earshot can't type yet, or when a secure input field is active.
 - It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
 - **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved.
 
