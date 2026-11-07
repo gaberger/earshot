@@ -130,7 +130,7 @@ struct DictationSession {
         case (.transcribing, .transcript(let raw, let secureInput)):
             guard let raw else {
                 state = .idle
-                return [.notice("Dictation could not transcribe that.")]
+                return [.notice("Dictation could not transcribe that. Choose Retry last dictation in the Earshot menu.")]
             }
             let text = Self.clean(raw)
             if text.isEmpty {
