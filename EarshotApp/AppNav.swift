@@ -2,13 +2,14 @@
 import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case recordings, dictation, settings
+    case recordings, notes, dictation, settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .recordings: return "Recordings"
+        case .notes: return "Notes"
         case .dictation: return "Dictation"
         case .settings: return "Settings"
         }
@@ -17,6 +18,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .recordings: return "waveform"
+        case .notes: return "note.text"
         case .dictation: return "keyboard"
         case .settings: return "gearshape"
         }
@@ -32,7 +34,7 @@ struct SidebarNav: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            ForEach([AppSection.recordings, AppSection.dictation]) { section in
+            ForEach([AppSection.recordings, AppSection.notes, AppSection.dictation]) { section in
                 let selected = selection == section
                 Button { selection = section } label: {
                     HStack(spacing: 8) {
@@ -57,10 +59,15 @@ struct SidebarNav: View {
 struct DictationPage: View {
     let onEnable: () -> Void
     let onResetPermission: () -> Void
+    let onClearNotes: () -> Void
+    @AppStorage(DictationPrefs.keepLog) private var keepLog = true
+    @State private var confirmingClear = false
 
-    init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void) {
+    init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void,
+         onClearNotes: @escaping () -> Void = {}) {
         self.onEnable = onEnable
         self.onResetPermission = onResetPermission
+        self.onClearNotes = onClearNotes
     }
 
     var body: some View {
@@ -74,6 +81,25 @@ struct DictationPage: View {
                 }
 
                 DictationSettingsView(onEnable: onEnable, onResetPermission: onResetPermission)
+
+                SettingsSection("Notes log") {
+                    SettingsRow("Keep a log of what I dictate",
+                                detail: "Each dictation is saved as text on this Mac and shows in Notes. Audio is never kept.") {
+                        Toggle("", isOn: $keepLog)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                    SettingsRow("Clear all notes",
+                                detail: "Deletes every saved note. This cannot be undone.") {
+                        Button("Clear…") { confirmingClear = true }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .confirmationDialog("Delete all saved notes?", isPresented: $confirmingClear) {
+                Button("Delete all", role: .destructive) { onClearNotes() }
+                Button("Cancel", role: .cancel) {}
             }
             .padding(.horizontal, 28)
             .padding(.top, 24)
