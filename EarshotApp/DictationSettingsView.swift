@@ -12,8 +12,29 @@ struct HotKeyRecorder: View {
     @State private var resignObserver: Any?
 
     var body: some View {
-        Button(listening ? "Press the new shortcut… (Esc to cancel)" : hotKey.display) {
+        Button {
             if listening { stop() } else { start() }
+        } label: {
+            HStack(spacing: 6) {
+                if listening {
+                    Text("Press the new shortcut… (Esc to cancel)")
+                } else {
+                    Text(hotKey.display)
+                    Image(systemName: "pencil")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(listening ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: 1)
+            )
         }
         .onDisappear { stop() }
     }
@@ -108,21 +129,11 @@ struct DictationSettingsView: View {
             Group {
                 SettingsSection("Shortcut") {
                     SettingsRow("To dictate",
-                                detail: toggle ? "Tap to start, tap again to stop." : "Hold the keys while you talk, then let go.") {
+                                detail: "Click the shortcut to change it. " + (toggle ? "Tap to start, tap again to stop." : "Hold the keys while you talk, then let go.")) {
                         HStack {
                             HotKeyRecorder(hotKey: $hotKey, notice: $hotKeyNotice)
                                 .buttonStyle(.plain)
                                 .font(.body.weight(.semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(nsColor: .textBackgroundColor))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-                                )
                             if hotKey != .default {
                                 Button("Reset") {
                                     HotKey.reset()
