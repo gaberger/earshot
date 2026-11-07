@@ -30,11 +30,12 @@ final class NotesStore: ObservableObject {
 
     func clear() {
         log.clear()
+        try? FileManager.default.removeItem(atPath: url.path + ".bad")
         commit()
     }
 
     private func commit() {
-        if !log.save(to: url) { saveFailed = true }
+        saveFailed = !log.save(to: url)
         refresh()
     }
 

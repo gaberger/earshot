@@ -247,6 +247,12 @@ final class Library: ObservableObject {
         dir = home.appendingPathComponent("Recordings/whisper")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         log("Earshot \(AppVersion.display) started")
+        // Leftover temporary audio from a crashed or killed run; nothing can be capturing yet.
+        let tmp = NSTemporaryDirectory()
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: tmp)) ?? []
+        where name.hasPrefix("earshot-note-") || name.hasPrefix("earshot-dictation-") {
+            try? FileManager.default.removeItem(atPath: (tmp as NSString).appendingPathComponent(name))
+        }
         reload()
         selection = items.first?.id
         loadSelected()
@@ -255,7 +261,10 @@ final class Library: ObservableObject {
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recorder?.stop() }
         }
-        dictation.isMeetingRecording = { [weak self] in self?.recording ?? false }
+        dictation.isMeetingRecording = { [weak self] in
+            guard let self else { return false }
+            return self.recording || self.noteRecorder.recordingSince != nil || self.noteRecorder.transcribing
+        }
         dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
         dictation.speakScriptPath = { [weak self] in self?.bin("earshot-speak") ?? "" }
         dictation.runHelper = { await Library.run($0) }
@@ -274,7 +283,13 @@ final class Library: ObservableObject {
         noteRecorder.microphoneID = { UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? "" }
         noteRecorder.log = { [weak self] in self?.log($0) }
         noteRecorder.onNotice = { [weak self] in self?.notice = $0 }
-        noteRecorder.onSaved = { [weak self] text, secs in self?.notes.add(text: text, seconds: secs) }
+        noteRecorder.onSaved = { [weak self] text, secs in
+            guard let self else { return }
+            self.notes.add(text: text, seconds: secs)
+            if self.notes.saveFailed {
+                self.notice = "The note could not be saved to disk, so it will be gone after you quit."
+            }
+        }
         dictation.refresh()
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -1975,6 +1990,7 @@ struct NotesPage: View {
                   },
                   onDelete: { store.remove(id: $0) },
                   onClear: { store.clear() })
+            .onDisappear { recorder.stop() }
     }
 }
 
