@@ -43,3 +43,24 @@ Gate: `bash EarshotApp/Tests/run.sh` with `PasteGuardTests` (pure), plus the exi
 
 - ADR-2611071400-highlight-the-dictation-target-window
 - ADR-2611061900-dictate-into-any-app
+
+## Amendment 2026-11-07 (later): identify the window, not its geometry
+
+The owner: "if somebody changes the window and the transcription hasn't landed, the text gets into the wrong
+window. We need to stop that." The first version compared the frontmost app and the focused window's
+*frame* (within 8 pt). That misses the common case of two windows of one app with the same frame
+(maximized or full-screen terminals), and tabs or split panes inside one window, which share a frame.
+
+1. The target now carries three things from Accessibility: the app (process id), the **focused window
+   element** and the **focused UI element** (the text area, the tab or pane), compared with
+   `CFEqual` on the `AXUIElement`s themselves (not `CFHash`: a test showed the hash of an application element is
+   just the process id plus a constant, so it may not tell windows apart). The pure rule receives simple tokens
+   built from that comparison (same element: same token). No title and no text are read.
+2. `PasteGuard.decide` holds when the app differs, when both window tokens are known and differ, or when
+   both focus tokens are known and differ. A token missing on either side is not compared.
+3. The frame comparison (8 pt) is only the **fallback**, used when a window token is missing on either side.
+   If the window and the focus both match, the frame is ignored: moving the window mid-dictation is fine.
+4. A false hold costs one ⌘V; a false paste is the bug. Where the two conflict, hold. A user who clicks
+   another field in the same window while waiting is also held, because the text would land somewhere other
+   than where they spoke.
+5. Not changed: nothing is pasted when held; the text goes to the clipboard with a notice.
