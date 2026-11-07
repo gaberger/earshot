@@ -68,7 +68,9 @@ for f in "${files[@]}"; do
   # whisper.cpp wants 16 kHz mono WAV; convert whatever we were given.
   wav="$tmp/input.wav"
   ffmpeg -hide_banner -loglevel error -y -i "$f" -ac 1 -ar 16000 -c:a pcm_s16le "$wav"
-  base="${f%.*}"
+  # Strip the extension from the filename only; a dot in a directory name is not one.
+  name="${f##*/}"
+  base="${f%"$name"}${name%.*}"
   vad=()
   [[ -f "$VAD_MODEL" ]] && vad=(--vad -vm "$VAD_MODEL")
   whisper-cli -m "$MODEL" -f "$wav" -l "$lang" ${translate[@]+"${translate[@]}"} \
