@@ -66,6 +66,27 @@ import AppKit
                 SidebarStatusCard(ready: false, detail: "Recording… 12:41")
             }.padding(16).frame(width: 260).background(Color(nsColor: .windowBackgroundColor)))
         }),
+        ("recording", {
+            AnyView(RecordingScreen(start: Date().addingTimeInterval(-754), micName: "MacBook Pro Microphone",
+                                    level: { -18 }, endingIn: nil, onKeepRecording: {}, onStop: {})
+                .frame(width: 760, height: 520).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("recording-ending", {
+            AnyView(RecordingScreen(start: Date().addingTimeInterval(-2210), micName: "MacBook Pro Microphone",
+                                    level: { -55 }, endingIn: 24, onKeepRecording: {}, onStop: {})
+                .frame(width: 760, height: 520).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("detail-header", {
+            AnyView(RecordingHeader(title: "Weekly sync with the platform team", date: Date(),
+                                    chips: ["42 min", "Transcribed", "Summarized"],
+                                    tabs: ["Summary", "Transcript"], selectedTab: .constant(0),
+                                    actions: [
+                                        HeaderAction(title: "Summarize", icon: "sparkles", enabled: true, action: {}),
+                                        HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true, action: {}),
+                                        HeaderAction(title: "Finder", icon: "folder", enabled: true, action: {}),
+                                    ], onRename: {})
+                .padding(24).frame(width: 760).background(Color(nsColor: .windowBackgroundColor)))
+        }),
     ]
 }
 
