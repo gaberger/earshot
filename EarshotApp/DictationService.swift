@@ -38,6 +38,11 @@ final class DictationService: ObservableObject {
     var log: (String) -> Void = { _ in }
     var microphoneID: () -> String = { "" }
 
+    /// True while a failed clip is kept and `retryLast()` can try it again.
+    @Published private(set) var retryAvailable = false
+    /// The wav of the last failed transcription, in NSTemporaryDirectory; lives until the next dictation.
+    private var keptClip: URL?
+
     private var session = DictationSession()
     private var recorder: MicRecorder?
     private var ticker: Timer?
@@ -118,6 +123,7 @@ final class DictationService: ObservableObject {
         handler = nil
         registered = nil
         rejectedKey = nil
+        discardKeptClip()
         hud.hide()
         // Turning it off mid-capture must not leave the microphone open. A tick far in the future
         // stops a capture in either mode; key up is ignored in tap-to-toggle mode.
@@ -186,6 +192,7 @@ final class DictationService: ObservableObject {
     }
 
     private func beginRecording() {
+        discardKeptClip()
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("earshot-dictation-\(UUID().uuidString).wav")
         do {
@@ -239,7 +246,12 @@ final class DictationService: ObservableObject {
             Self.deleteFiles(for: rec.url)
             return send(.failed)
         }
-        let url = rec.url
+        transcribe(rec.url)
+    }
+
+    /// Transcribes the wav at `url`. On failure the wav is kept (in the temp directory only) for
+    /// one retry; whisper's side files are always removed. On success everything is deleted.
+    private func transcribe(_ url: URL) {
         let script = scriptPath()
         let helper = runHelper
         Task { @MainActor in
@@ -247,20 +259,58 @@ final class DictationService: ObservableObject {
                 let failure = await helper([script, url.path])
                 let transcript = url.deletingPathExtension().appendingPathExtension("txt")
                 let text = failure == nil ? try? String(contentsOf: transcript, encoding: .utf8) : nil
-                Self.deleteFiles(for: url)
+                if text == nil {
+                    Self.deleteSideFiles(for: url)
+                } else {
+                    Self.deleteFiles(for: url)
+                }
                 return text
             }.value
-            if text == nil { log("Dictation: transcription failed.") }
+            if text == nil {
+                log("Dictation: transcription failed.")
+                keptClip = url
+                retryAvailable = true
+            } else if keptClip == url {
+                keptClip = nil
+                retryAvailable = false
+            }
             let corrected = text.map { DictationDictionary.load().apply($0) }
             send(.transcript(corrected, secureInput: IsSecureEventInputEnabled()))
         }
     }
 
+    /// Retries the clip kept from the last failed transcription, once.
+    func retryLast() {
+        guard let clip = keptClip, FileManager.default.fileExists(atPath: clip.path) else {
+            keptClip = nil
+            retryAvailable = false
+            return
+        }
+        send(.retry(meetingRecording: isMeetingRecording()))
+        if session.state != .transcribing { return }
+        // Give focus back to the app the user was typing in, so the paste lands there.
+        NSApp.deactivate()
+        transcribe(clip)
+    }
+
+    /// Deletes the kept clip, if any, and clears its state.
+    private func discardKeptClip() {
+        if let clip = keptClip { Self.deleteFiles(for: clip) }
+        keptClip = nil
+        retryAvailable = false
+    }
+
     /// Removes the wav and everything whisper wrote beside it.
     nonisolated private static func deleteFiles(for wav: URL) {
+        try? FileManager.default.removeItem(at: wav)
+        deleteSideFiles(for: wav)
+    }
+
+    /// Removes only what whisper wrote beside the wav.
+    nonisolated private static func deleteSideFiles(for wav: URL) {
         let base = wav.deletingPathExtension()
-        for url in [wav] + ["txt", "srt", "json"].map({ base.appendingPathExtension($0) }) {
-            try? FileManager.default.removeItem(at: url)
+        for ext in ["txt", "srt", "json"] {
+            try? FileManager.default.removeItem(at: base.appendingPathExtension(ext))
         }
     }
 
