@@ -312,6 +312,25 @@ It exposes four read-only tools: `list_recordings`, `get_transcript`, `get_summa
 
 Tool output is untrusted text from audio, so an agent should treat it as data, not instructions. Symlinked recording files are refused. A file still being written may be read as a prefix, and a transcript may briefly be newer than its summary because the files are written separately.
 
+## 🔊 Hear replies spoken (voice loop)
+
+This is for Claude Code. `scripts/earshot-speak` reads Claude's reply aloud when a turn ends, using the macOS `say` command locally. Nothing leaves this Mac.
+
+```bash
+scripts/earshot-speak on      # start speaking replies
+scripts/earshot-speak off     # stop speaking replies
+scripts/earshot-speak status  # prints "on" or "off"
+scripts/earshot-speak stop    # cut off the reply being spoken now
+```
+
+It is off until you run `on`. Add the Stop hook to your Claude Code settings:
+
+```json
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/ABSOLUTE/PATH/TO/earshot/scripts/earshot-speak"}]}]}}
+```
+
+Code blocks, tables and URLs are skipped, and long replies are cut to about 280 characters. **Anyone nearby hears replies while it is on.**
+
 ## 🔬 Accuracy notes
 
 > [!TIP]
