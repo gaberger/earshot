@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FB923C"/><stop offset="0.55" stop-color="#F97316"/><stop offset="1" stop-color="#C2410C"/></linearGradient>
+    <radialGradient id="glow" cx="0.7" cy="0.25" r="0.8"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#tile)"/>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#glow)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="44">
+    <path d="M 372 410 A 150 150 0 0 0 372 610"/>
+  </g>
+  <g fill="none" stroke="#FFE3CC" stroke-linecap="round" stroke-linejoin="round" stroke-width="44">
+    <path d="M 302 350 A 230 230 0 0 0 302 670"/>
+  </g>
+  <g fill="none" stroke="#FFC8A0" stroke-linecap="round" stroke-linejoin="round" stroke-width="44">
+    <path d="M 234 300 A 300 300 0 0 0 234 720"/>
+  </g>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="64">
+    <path d="M 470 420 C 470 300 560 236 650 236 C 762 236 840 318 840 426 C 840 528 772 566 742 626 C 712 690 724 770 640 800 C 580 822 530 794 516 752"/>
+    <path d="M 572 440 C 572 382 612 342 660 342 C 714 342 750 384 742 436 C 736 478 700 496 680 528"/>
+  </g>
+</svg>
