@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import ApplicationServices
 
 /// Records a new dictation shortcut: click, then press the combination. Esc cancels.
@@ -69,6 +70,8 @@ struct DictationSettingsView: View {
     @AppStorage(DictationPrefs.toggle) private var toggle = false
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
+    @State private var trusted = AXIsProcessTrusted()
+    private let trustTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
     @State private var corrections: [CorrectionRow] =
         DictationDictionary.load().entries.map { CorrectionRow(heard: $0.heard, write: $0.write) }
 
@@ -92,8 +95,8 @@ struct DictationSettingsView: View {
                             if on { onEnable() }
                         }
                 }
-                if enabled && !AXIsProcessTrusted() {
-                    SettingsBanner("Earshot is not allowed to type for you yet.",
+                if enabled && !trusted {
+                    SettingsBanner("Earshot is not allowed to type for you yet. If Earshot is already in the list, remove it with the minus button and add it again; macOS forgets the permission after an update.",
                                    actionTitle: "Open Accessibility settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
@@ -189,5 +192,12 @@ struct DictationSettingsView: View {
             .opacity(enabled ? 1 : 0.5)
         }
         .onChange(of: corrections.map { [$0.heard, $0.write] }) { _, _ in save() }
+        .onAppear { trusted = AXIsProcessTrusted() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            trusted = AXIsProcessTrusted()
+        }
+        .onReceive(trustTimer) { _ in
+            trusted = AXIsProcessTrusted()
+        }
     }
 }
