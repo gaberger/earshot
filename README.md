@@ -101,6 +101,9 @@ let go. A second or two later the text appears where your cursor is.
   want. It must include <kbd>⌃</kbd> or <kbd>⌥</kbd> (or be a function key such as <kbd>F5</kbd>), so it
   never steals ordinary typing, and shortcuts macOS already owns can't be chosen. **Reset** brings back
   the default. If another app already uses your choice, Earshot says so.
+- **Hold, or tap.** By default you hold the keys while you talk. Under **Settings → Dictation → Mode**
+  you can switch to **Tap to start, tap to stop**, which is easier for long dictations. A change
+  applies from your next dictation.
 - **Fix words it mishears** under **Settings → Dictation → Corrections**: one per line, as
   `ear shot => Earshot`. Matching ignores case and only hits whole words, and the longest phrase wins.
 - **The indicator.** While you hold the keys a small **Listening…** pill with a live level bar floats
