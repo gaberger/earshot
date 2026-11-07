@@ -71,8 +71,16 @@ func suite() -> UserDefaults {
         checkTrue("the instruction names filler words",
                   DictationCleanup.instructions.lowercased().contains("filler"))
 
+        // MARK: the pill names the cleanup stage (ADR-2611071300)
+        typealias S = DictationSession.State
+        checkTrue("transcribing while tidying says Tidying…", S.transcribing.indicatorText(tidying: true) == "Tidying…")
+        checkTrue("transcribing, not tidying, still says Transcribing…", S.transcribing.indicatorText(tidying: false) == "Transcribing…")
+        checkTrue("listening ignores the tidying flag", S.listening.indicatorText(tidying: true) == "Listening…")
+        checkTrue("idle stays hidden while the flag is set", S.idle.indicatorText(tidying: true) == nil)
+        checkTrue("inserting stays hidden while the flag is set", S.inserting.indicatorText(tidying: true) == nil)
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 19 { print("VACUOUS: only \(checks) checks ran, need 19"); exit(1) }
+        if checks < 24 { print("VACUOUS: only \(checks) checks ran, need 24"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }

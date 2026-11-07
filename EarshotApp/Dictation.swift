@@ -66,6 +66,12 @@ struct DictationSession {
             }
         }
 
+        /// Like `indicatorText`, but names the cleanup stage while `tidying` is set.
+        func indicatorText(tidying: Bool) -> String? {
+            if self == .transcribing && tidying { return "Tidying…" }
+            return indicatorText
+        }
+
         /// Whether the indicator carries a live level meter. Only while the microphone is open.
         var showsLevel: Bool { self == .listening }
     }

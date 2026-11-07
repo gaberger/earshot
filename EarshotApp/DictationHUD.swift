@@ -11,6 +11,7 @@ private final class HUDPanel: NSPanel {
 /// What the indicator shows. The level is polled, not pushed, so the view owns its own timer.
 private struct HUDView: View {
     let state: DictationSession.State
+    var tidying = false
     let level: () -> Float
 
     @State private var meter: CGFloat = 0
@@ -27,7 +28,7 @@ private struct HUDView: View {
                         .opacity(pulse ? 0.45 : 1)
                         .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
                 }
-                Text(state.indicatorText ?? "")
+                Text(state.indicatorText(tidying: tidying) ?? "")
                     .font(.system(size: 13, weight: .medium))
             }
             if state.showsLevel {
@@ -62,9 +63,9 @@ final class DictationHUD {
     private var lastText: String?
 
     /// Shows or updates the panel while the state has something to say, else hides it.
-    func update(state: DictationSession.State, level: @escaping () -> Float) {
-        guard let text = state.indicatorText else { return hide() }
-        let view = HUDView(state: state, level: level)
+    func update(state: DictationSession.State, tidying: Bool = false, level: @escaping () -> Float) {
+        guard let text = state.indicatorText(tidying: tidying) else { return hide() }
+        let view = HUDView(state: state, tidying: tidying, level: level)
         if let host {
             host.rootView = view
         } else {

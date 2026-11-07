@@ -42,6 +42,8 @@ final class DictationService: ObservableObject {
     /// A shortcut another app refused to give up; not retried until the saved shortcut changes.
     private var rejectedKey: HotKey?
     private let hud = DictationHUD()
+    /// True while the cleanup (tidy) stage runs, so the indicator can name it.
+    private(set) var tidying = false
 
     /// Asks for the two permissions dictation needs: the microphone, and Accessibility (to type).
     static func requestPermissions() {
@@ -149,7 +151,11 @@ final class DictationService: ObservableObject {
         let actions = session.handle(event)
         updateTicker()
         for action in actions { apply(action) }
-        hud.update(state: session.state, level: { [weak self] in self?.recorder?.level ?? -160 })
+        refreshHUD()
+    }
+
+    private func refreshHUD() {
+        hud.update(state: session.state, tidying: tidying, level: { [weak self] in self?.recorder?.level ?? -160 })
     }
 
     /// A one-second tick runs only while listening, so the core can stop a stuck key.
@@ -282,6 +288,8 @@ final class DictationService: ObservableObject {
             var cleaned = text
             if let original = text, DictationPrefs.isCleanupEnabled() {
                 let tidy = self.tidy
+                tidying = true
+                refreshHUD()
                 let answer = await withTaskGroup(of: String?.self) { group in
                     group.addTask { await tidy(original) }
                     group.addTask { try? await Task.sleep(for: .seconds(5)); return nil }
@@ -289,6 +297,8 @@ final class DictationService: ObservableObject {
                     group.cancelAll()
                     return first
                 }
+                tidying = false
+                refreshHUD()
                 cleaned = DictationCleanup.choose(original: original, cleaned: answer)
                 if answer == nil { log("Dictation: cleanup skipped.") }
             }
