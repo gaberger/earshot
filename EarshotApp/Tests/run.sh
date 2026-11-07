@@ -24,3 +24,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library HotK
 # DictionaryTests also uses @main and fails itself if fewer than 26 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationDictionary.swift Tests/DictionaryTests.swift -o "$out/dictionary-tests"
 "$out/dictionary-tests"
+# SearchTests also uses @main and fails itself if fewer than 19 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library SearchIndex.swift Tests/SearchTests.swift -o "$out/search-tests"
+"$out/search-tests"
