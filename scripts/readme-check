@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Gate for README.md as the GitHub front page: structure, links, images, honesty, brand.
+
+Run: python3 -I scripts/readme-check
+It checks what a program can check. It cannot tell whether the prose is clear or true; a reviewer reads it
+against the code for that. It fails itself if it finds no README or too few checks ran.
+"""
+import os
+import re
+import struct
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FLOOR = 55
+checks = 0
+failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail != "":
+            print("   ", str(detail)[:300])
+
+
+def png_width(path):
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        return 0
+    return struct.unpack(">I", head[16:20])[0]
+
+
+path = os.path.join(ROOT, "README.md")
+if not os.path.exists(path):
+    print("FAIL README.md does not exist")
+    sys.exit(1)
+text = open(path, encoding="utf-8").read()
+lines = text.splitlines()
+
+# Split into prose lines and fenced code lines, so a "# comment" inside a code block is not a heading.
+prose, in_fence = [], False
+for ln in lines:
+    if ln.strip().startswith("```"):
+        in_fence = not in_fence
+        continue
+    if not in_fence:
+        prose.append(ln)
+headings = [l for l in prose if re.match(r"^#{1,4} ", l)]
+low = text.lower()
+
+# MARK: size and shape
+check("the README is between 200 and 520 lines", 200 <= len(lines) <= 520, len(lines))
+check("exactly one H1", sum(1 for h in headings if h.startswith("# ")) == 1, [h for h in headings if h.startswith("# ")])
+for name, rx in [("Features", r"Features"), ("Screenshots", r"Screenshots|What it looks like"), ("Install", r"Install"),
+                 ("Dictation", r"Dictation"), ("Notes", r"Notes"), ("Privacy", r"Privacy"),
+                 ("the agent (MCP) section", r"agent"), ("Hear replies spoken", r"Hear replies spoken"),
+                 ("Command line", r"Command line"), ("Accuracy", r"Accuracy"), ("Uninstall", r"Uninstall"),
+                 ("Versions and releases", r"Versions and releases"),
+                 ("a troubleshooting or check-it-works section", r"Check that it works|Troubleshoot")]:
+    check("a heading for: %s" % name, any(re.search(rx, h, re.I) for h in headings))
+
+# MARK: images
+imgs = re.findall(r'<img\s+[^>]*?src="([^"]+)"[^>]*?alt="([^"]*)"', text) + \
+       [(m[1], m[0]) for m in re.findall(r"!\[([^\]]*)\]\(([^)\s]+)", text)]
+imgs += [(m[0], m[1]) for m in re.findall(r'<img\s+[^>]*?alt="([^"]*)"[^>]*?src="([^"]+)"', text) if False]
+local = [(s, a) for s, a in imgs if not s.startswith(("http://", "https://", "data:"))]
+check("there are images", len(local) >= 8, len(local))
+check("every local image file exists", all(os.path.exists(os.path.join(ROOT, s)) for s, _ in local),
+      [s for s, _ in local if not os.path.exists(os.path.join(ROOT, s))])
+check("every image has alt text of 12 or more characters", all(len(a) >= 12 for _, a in local),
+      [(s, a) for s, a in local if len(a) < 12])
+shots = [s for s, _ in local if s.startswith("assets/screenshots/")]
+check("at least 5 screenshots under assets/screenshots/", len(set(shots)) >= 5, sorted(set(shots)))
+small = [s for s in set(shots) if os.path.exists(os.path.join(ROOT, s)) and png_width(os.path.join(ROOT, s)) < 1000]
+check("every screenshot is at least 1000 px wide", not small, small)
+check("the README says the screenshots show sample data", "sample data" in low)
+check("the README uses the logo file", any(s == "assets/earshot-logo.svg" for s, _ in local))
+
+# MARK: links
+links = re.findall(r"\]\(([^)\s#][^)\s]*)\)", text) + re.findall(r'href="([^"#][^"]*)"', text)
+bad = [l for l in links if not l.startswith(("http://", "https://", "mailto:")) and not os.path.exists(os.path.join(ROOT, l.split("#")[0]))]
+check("every local link target exists", not bad, bad)
+check("links to the release notes folder", "docs/releases" in text)
+
+# MARK: brand: no leftover indigo from the old identity
+old = ["5b5bf0", "7a5bf0", "2a1a7a"]
+files = [os.path.join(ROOT, "assets", "earshot-logo.svg")] + \
+        [os.path.join(ROOT, "assets", "badges", f) for f in sorted(os.listdir(os.path.join(ROOT, "assets", "badges")))]
+leftover = [(os.path.basename(f), c) for f in files if os.path.exists(f)
+            for c in old if c in open(f, encoding="utf-8").read().lower()]
+check("no old indigo or violet left in the logo or the badges", not leftover, leftover)
+logo = open(os.path.join(ROOT, "assets", "earshot-logo.svg"), encoding="utf-8").read().lower() \
+    if os.path.exists(os.path.join(ROOT, "assets", "earshot-logo.svg")) else ""
+check("the logo uses flame orange F97316", "f97316" in logo)
+check("the logo no longer says it shows sound waves reaching an ear in the alt text",
+      "sound waves reaching an ear" not in low or "charcoal" in low or "orange ear" in low)
+
+# MARK: features are documented
+for phrase in ["Tap to start, tap to stop", "Fix words it mishears", "Tidy up what I say", "Highlight the window",
+               "Press Return after typing", "earshot-mcp", "earshot-speak", "Recordings", "Notes", "Dictation"]:
+    check("documents: %s" % phrase, phrase in text)
+check("documents search with the keyboard shortcut Command K", re.search(r"<kbd>⌘</kbd>\s*<kbd>K</kbd>", text) is not None
+      or "⌘K" in text)
+check("documents the categories in the sidebar", "sidebar" in low)
+check("documents going back from an open recording", re.search(r"Esc|<kbd>Esc</kbd>", text) is not None and "⌘</kbd> <kbd>[" in text)
+
+# MARK: honesty and requirements
+for phrase in ["Apple silicon", "macOS 26.4", "Apple Intelligence", "not notarized", "Open Anyway"]:
+    check("states: %s" % phrase, phrase.lower() in low)
+check("says that an agent you connect may send text to its own provider", "agent" in low and "provider" in low)
+check("does not still say it is unpublished", "not published" not in low and "local repository" not in low)
+check("no placeholder text", not re.search(r"lorem ipsum|\bTODO\b|\bTBD\b", text, re.I))
+
+# MARK: the install commands are exact
+for cmd in ["brew install whisper-cpp ffmpeg uv", "bash EarshotApp/build.sh", "ggml-large-v3-turbo.bin",
+            "ggml-silero-v5.1.2.bin", "ggml-large-v3-q5_0.bin", "wespeaker_en_voxceleb_resnet34_LM.onnx",
+            "scripts/release minor"]:
+    check("install or release command present: %s" % cmd, cmd in text)
+
+print("%d checks, %d failed" % (checks, failures))
+if checks < FLOOR:
+    print("VACUOUS: only %d checks ran, need %d" % (checks, FLOOR))
+    sys.exit(1)
+sys.exit(0 if failures == 0 else 1)
