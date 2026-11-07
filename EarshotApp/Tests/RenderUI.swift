@@ -100,6 +100,29 @@ import AppKit
             return AnyView(DictationPage(onEnable: {}, onResetPermission: {})
                 .frame(width: 760, height: 900).background(Color(nsColor: .windowBackgroundColor)))
         }),
+        ("topbar", {
+            AnyView(TopBar(title: "Recordings", query: .constant(""), hits: [], focusToken: 0, onPick: { _ in })
+                .frame(width: 760).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("topbar-results", {
+            let hits: [SearchHit] = [
+                .destination(id: "shortcut", title: "Shortcut", detail: "Dictation · change the dictation shortcut"),
+                .recording(id: "c", title: "Roadmap review", snippet: "Nothing about dates."),
+                .recording(id: "a", title: "Weekly sync", snippet: "…we talked about the roadmap and the launch date."),
+            ]
+            return AnyView(TopBar(title: "Recordings", query: .constant("roadmap"), hits: hits, focusToken: 0, onPick: { _ in })
+                .frame(width: 760, height: 320, alignment: .top).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("topbar-none", {
+            AnyView(TopBar(title: "Dictation", query: .constant("zebra"), hits: [], focusToken: 0, onPick: { _ in })
+                .frame(width: 760, height: 200, alignment: .top).background(Color(nsColor: .windowBackgroundColor)))
+        }),
+        ("sidebar-footer", {
+            AnyView(VStack(spacing: 16) {
+                SidebarFooter(settingsSelected: false, onSettings: {}, onHelp: {})
+                SidebarFooter(settingsSelected: true, onSettings: {}, onHelp: {})
+            }.padding(16).frame(width: 260).background(Color(nsColor: .windowBackgroundColor)))
+        }),
     ]
 }
 
