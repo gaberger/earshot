@@ -42,8 +42,10 @@ cp ../assets/menubar.svg "$APP/Contents/Resources/"
 # The app runs its own copy of the helpers, so an install from the DMG needs nothing in ~/.local/bin.
 install -m 755 ../scripts/transcribe ../scripts/speakers "$APP/Contents/Resources/"
 
-# Ad-hoc signature so macOS remembers the microphone permission for this app.
-codesign --force --deep --sign - "$APP"
+# Ad-hoc signing alone makes macOS identify the app by the hash of the exact binary, so every build
+# looked like a new app and lost its Accessibility and Microphone permission. The explicit
+# designated requirement keeps the identity the same across builds.
+codesign --force --deep --sign - -r='designated => identifier "com.gaberger.earshot"' "$APP"
 # Tell Finder/Launchpad about the app (and its "Open With" file types).
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 
