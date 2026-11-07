@@ -3,6 +3,9 @@ import Foundation
 /// Decides what push-to-talk dictation does next, from key events, transcription results and the
 /// clock, and says what the app should do about it.
 ///
+/// With `Config.toggle` set it is tap to start, tap to stop: a key up is ignored, and a second key
+/// down stops capture unless it comes within `minimumHold` of the first (a bounce).
+///
 /// It fails toward "type nothing". Text that never appears costs the user one more key press; text
 /// typed into the wrong place, or into a password field, cannot be taken back. So:
 /// - A press shorter than `minimumHold` is a tap, not dictation: the capture is thrown away.
@@ -19,6 +22,8 @@ struct DictationSession {
         var minimumHold: TimeInterval = 0.3
         /// Seconds after which a hold stops capture by itself.
         var maximumHold: TimeInterval = 60
+        /// Tap to start, tap to stop, instead of holding the key.
+        var toggle: Bool = false
     }
 
     enum State: Equatable {
@@ -77,6 +82,16 @@ struct DictationSession {
             heldSince = t
             state = .listening
             return [.startCapture]
+
+        case (.listening, .keyDown(let t, _)) where config.toggle:
+            // Second tap: a press inside the minimum hold is a bounce, not a request to stop.
+            guard t - (heldSince ?? t) >= config.minimumHold else { return [] }
+            heldSince = nil
+            state = .transcribing
+            return [.stopCapture]
+
+        case (.listening, .keyUp) where config.toggle:
+            return []
 
         case (.listening, .keyUp(let t)):
             let held = t - (heldSince ?? t)
