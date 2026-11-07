@@ -242,19 +242,28 @@
       "updated": "2026-11-02T21:51:16.110456+00:00"
     },
     "e8000968-e6c7-4c12-a152-9697b902d961": {
-      "adr": "ADR-2611071100",
+      "adr": "ADR-2611071400",
       "files": [
-        "EarshotApp/Tests/CleanupTests.swift",
         "docs/adrs/ADR-2611071000-dictation-cleanup-with-on-device-model.md",
         "docs/adrs/ADR-2611071100-local-mcp-server-for-agents.md",
-        "scripts/earshot-mcp-test"
+        "scripts/earshot-mcp-test",
+        "EarshotApp/Tests/CleanupTests.swift",
+        "docs/adrs/ADR-2611071300-pill-names-the-cleanup-stage.md",
+        "EarshotApp/build.sh",
+        "docs/adrs/ADR-2611071400-highlight-the-dictation-target-window.md",
+        "EarshotApp/Tests/HighlightTests.swift"
       ],
       "gate": "python3 -I scripts/earshot-mcp-test && cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+      "last_run": {
+        "at": "2026-11-07T19:57:16.293072+00:00",
+        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+        "stage": "build"
+      },
       "pid": 15802,
       "pid_start": null,
       "running": null,
       "stage": "build",
-      "updated": "2026-11-07T15:42:15.751777+00:00"
+      "updated": "2026-11-07T19:57:16.293084+00:00"
     },
     "f1d3efd1-a9d0-47b4-9b5e-c875df1df171": {
       "adr": "ADR-2611051236",
