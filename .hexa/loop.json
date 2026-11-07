@@ -16,6 +16,31 @@
       "stage": "build",
       "updated": "2026-11-06T17:03:32.746765+00:00"
     },
+    "72718d08-7a23-41db-9414-e2ca3295f525": {
+      "gate": "python3 -I scripts/earshot-mcp-test && python3 -I scripts/earshot-mcp-hardening-test",
+      "pid": 24630,
+      "pid_start": null,
+      "stage": "gate",
+      "tasks": [
+        {
+          "status": "doing",
+          "title": "Write scripts/earshot-mcp"
+        },
+        {
+          "status": "todo",
+          "title": "Hook hardening test into run.sh"
+        },
+        {
+          "status": "todo",
+          "title": "README section"
+        },
+        {
+          "status": "todo",
+          "title": "hexa analyze clean"
+        }
+      ],
+      "updated": "2026-11-07T15:24:45.918839+00:00"
+    },
     "a3af30eb-c7d6-477d-88da-cbf86dcd00da": {
       "adr": "ADR-2611061900",
       "files": [
@@ -215,6 +240,21 @@
         }
       ],
       "updated": "2026-11-02T21:51:16.110456+00:00"
+    },
+    "e8000968-e6c7-4c12-a152-9697b902d961": {
+      "adr": "ADR-2611071100",
+      "files": [
+        "EarshotApp/Tests/CleanupTests.swift",
+        "docs/adrs/ADR-2611071000-dictation-cleanup-with-on-device-model.md",
+        "docs/adrs/ADR-2611071100-local-mcp-server-for-agents.md",
+        "scripts/earshot-mcp-test"
+      ],
+      "gate": "python3 -I scripts/earshot-mcp-test && cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+      "pid": 15802,
+      "pid_start": null,
+      "running": null,
+      "stage": "build",
+      "updated": "2026-11-07T15:42:15.751777+00:00"
     },
     "f1d3efd1-a9d0-47b4-9b5e-c875df1df171": {
       "adr": "ADR-2611051236",

@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Gate for ADR-2611071100: drives scripts/earshot-mcp over stdio against a fixture directory.
+
+Run: python3 -I scripts/earshot-mcp-test
+Every expected value is written out by hand, not computed from the server's own rules.
+"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SERVER = os.path.join(HERE, "earshot-mcp")
+checks = 0
+failures = 0
+
+
+def check(name, ok, detail=""):
+    global checks, failures
+    checks += 1
+    print("PASS" if ok else "FAIL", name)
+    if not ok:
+        failures += 1
+        if detail:
+            print("   ", detail)
+
+
+class Client:
+    def __init__(self, rec_dir):
+        env = dict(os.environ, WHISPER_REC_DIR=rec_dir)
+        self.p = subprocess.Popen([sys.executable, "-I", SERVER], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True)
+        self.n = 0
+
+    def send_raw(self, line):
+        self.p.stdin.write(line + "\n")
+        self.p.stdin.flush()
+
+    def request(self, method, params=None):
+        self.n += 1
+        msg = {"jsonrpc": "2.0", "id": self.n, "method": method}
+        if params is not None:
+            msg["params"] = params
+        self.send_raw(json.dumps(msg))
+        return self.read()
+
+    def read(self):
+        line = self.p.stdout.readline()
+        return json.loads(line) if line else None
+
+    def call(self, name, **args):
+        return self.request("tools/call", {"name": name, "arguments": args})
+
+    def close(self):
+        self.p.stdin.close()
+        try:
+            self.p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.p.kill()
+
+
+def text_of(resp):
+    return "".join(c.get("text", "") for c in resp["result"]["content"])
+
+
+def main():
+    if not os.path.exists(SERVER):
+        print("FAIL scripts/earshot-mcp does not exist")
+        sys.exit(1)
+    with tempfile.TemporaryDirectory() as root:
+        rec = os.path.join(root, "rec")
+        os.mkdir(rec)
+        secret = os.path.join(root, "secret.txt")
+        open(secret, "w").write("TOP SECRET OUTSIDE")
+
+        def put(name, body):
+            open(os.path.join(rec, name), "w").write(body)
+
+        put("2026-10-30_100305.txt", "We agreed to ship the Budget review on Friday.\n")
+        put("2026-10-30_100305.summary.md", "# Launch sync\n\n- [ ] Alice sends the invoice\n")
+        put("2026-10-30_100305.name", "Launch sync\n")
+        put("2026-10-30_100305.wav", "not really audio")
+        put("2026-10-31_090000.txt", "Quick standup about the migration.\n")
+        os.utime(os.path.join(rec, "2026-10-30_100305.txt"), (1_700_000_000, 1_700_000_000))
+        os.utime(os.path.join(rec, "2026-10-31_090000.txt"), (1_700_100_000, 1_700_100_000))
+        put(".hidden.txt", "hidden")
+
+        c = Client(rec)
+        # MARK: handshake
+        r = c.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                     "clientInfo": {"name": "test", "version": "0"}})
+        check("initialize answers with the request id", r and r.get("id") == 1 and r.get("jsonrpc") == "2.0", str(r))
+        res = (r or {}).get("result", {})
+        check("initialize reports a protocol version", isinstance(res.get("protocolVersion"), str) and res["protocolVersion"])
+        check("initialize advertises tools", "tools" in res.get("capabilities", {}), str(res))
+        check("initialize names the server", res.get("serverInfo", {}).get("name") == "earshot", str(res))
+        c.send_raw(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+        p = c.request("ping")
+        check("a notification gets no reply, so ping is the next answer", p and p.get("id") == 2 and p.get("result") == {}, str(p))
+
+        # MARK: tools/list
+        r = c.request("tools/list")
+        tools = {t["name"]: t for t in r["result"]["tools"]}
+        check("exactly the four read-only tools",
+              set(tools) == {"list_recordings", "get_transcript", "get_summary", "search"}, str(sorted(tools)))
+        check("every tool has an object input schema",
+              all(t.get("inputSchema", {}).get("type") == "object" for t in tools.values()))
+        check("get_transcript requires an id", tools["get_transcript"]["inputSchema"].get("required") == ["id"])
+        check("search requires a query", tools["search"]["inputSchema"].get("required") == ["query"])
+
+        # MARK: list_recordings
+        r = c.call("list_recordings")
+        check("list_recordings succeeds", r["result"].get("isError") in (None, False), str(r))
+        rows = json.loads(text_of(r))
+        check("two recordings are listed (hidden file and audio are not recordings)", len(rows) == 2, str(rows))
+        check("newest first", [x["id"] for x in rows] == ["2026-10-31_090000", "2026-10-30_100305"], str(rows))
+        named = [x for x in rows if x["id"] == "2026-10-30_100305"][0]
+        check("the .name file gives the display name", named["name"] == "Launch sync", str(named))
+        check("a recording with a summary says so", named["has_summary"] is True)
+        check("a recording without one says so",
+              [x for x in rows if x["id"] == "2026-10-31_090000"][0]["has_summary"] is False)
+
+        # MARK: get_transcript / get_summary
+        r = c.call("get_transcript", id="2026-10-30_100305")
+        check("get_transcript returns the text", "ship the Budget review on Friday" in text_of(r), str(r))
+        r = c.call("get_summary", id="2026-10-30_100305")
+        check("get_summary returns the markdown", "- [ ] Alice sends the invoice" in text_of(r), str(r))
+        r = c.call("get_summary", id="2026-10-31_090000")
+        check("a missing summary is a tool error, not a crash", r["result"].get("isError") is True, str(r))
+        r = c.call("get_transcript", id="nope")
+        check("an unknown id is a tool error", r["result"].get("isError") is True, str(r))
+        r = c.call("get_transcript")
+        check("a missing id is a tool error", r["result"].get("isError") is True, str(r))
+
+        # MARK: search
+        r = c.call("search", query="budget REVIEW")
+        hits = json.loads(text_of(r))
+        check("search ignores case and finds the transcript",
+              [h["id"] for h in hits] == ["2026-10-30_100305"], str(hits))
+        check("a hit carries a snippet around the match", "Budget review" in hits[0].get("snippet", ""), str(hits))
+        r = c.call("search", query="invoice")
+        check("search also reads summaries", [h["id"] for h in json.loads(text_of(r))] == ["2026-10-30_100305"])
+        r = c.call("search", query="launch sync")
+        check("search also reads names", [h["id"] for h in json.loads(text_of(r))] == ["2026-10-30_100305"])
+        r = c.call("search", query="zzz-no-such-thing")
+        check("no match is an empty list", json.loads(text_of(r)) == [])
+        r = c.call("search", query="")
+        check("an empty query is a tool error", r["result"].get("isError") is True, str(r))
+
+        # MARK: path traversal
+        for bad in ["../secret", "../../etc/passwd", "/etc/passwd", "a/b", ".hidden", "x\x00y", ".."]:
+            r = c.call("get_transcript", id=bad)
+            leaked = "TOP SECRET" in json.dumps(r) or "root:" in json.dumps(r)
+            check("id %r is refused and leaks nothing" % bad, r["result"].get("isError") is True and not leaked, str(r))
+
+        # MARK: robustness
+        r = c.request("no/such/method")
+        check("an unknown method is -32601", r.get("error", {}).get("code") == -32601, str(r))
+        r = c.call("delete_everything")
+        check("an unknown tool is an error", "error" in r or r["result"].get("isError") is True, str(r))
+        c.send_raw("this is not json")
+        r = c.read()
+        check("malformed JSON gets a parse error (-32700)", r and r.get("error", {}).get("code") == -32700, str(r))
+        p = c.request("ping")
+        check("the server keeps running after bad input", p and p.get("result") == {}, str(p))
+
+        # MARK: the server does not alter anything
+        before = sorted(os.listdir(rec))
+        c.call("search", query="x")
+        check("the recordings directory is untouched", sorted(os.listdir(rec)) == before)
+        check("the file outside it is untouched", open(secret).read() == "TOP SECRET OUTSIDE")
+
+        c.close()
+        # stdout carried only JSON-RPC: every line parsed by read(); stderr never holds transcript text
+        err = c.p.stderr.read()
+        check("stderr never carries transcript text", "Budget review" not in err and "invoice" not in err, err[:200])
+        check("the server exits when stdin closes", c.p.returncode == 0, "returncode %r" % c.p.returncode)
+
+        # MARK: an empty or missing directory
+        empty = Client(os.path.join(root, "does-not-exist"))
+        empty.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}})
+        r = empty.call("list_recordings")
+        check("a missing directory lists nothing instead of crashing",
+              r["result"].get("isError") in (None, False) and json.loads(text_of(r)) == [], str(r))
+        empty.close()
+
+    print("%d checks, %d failed" % (checks, failures))
+    if checks < 24:
+        print("VACUOUS: only %d checks ran, need 24" % checks)
+        sys.exit(1)
+    sys.exit(0 if failures == 0 else 1)
+
+
+if __name__ == "__main__":
+    t = time.time()
+    main()

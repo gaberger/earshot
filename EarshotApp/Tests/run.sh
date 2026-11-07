@@ -36,3 +36,9 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 # CleanupTests also uses @main and fails itself if fewer than 19 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift DictationCleanup.swift Tests/CleanupTests.swift -o "$out/cleanup-tests"
 "$out/cleanup-tests"
+# earshot-mcp: the MCP server is driven over stdio (ADR-2611071100); it fails itself if fewer than 24 checks ran.
+python3 -I ../scripts/earshot-mcp-test
+# earshot-mcp hardening: hostile filesystem and protocol input; it fails itself if fewer than 100 checks ran.
+python3 -I ../scripts/earshot-mcp-hardening-test
+# speakers: the transcript rewrite must be atomic (readers see old or new, never partial); fails itself if fewer than 7 checks ran.
+python3 -I ../scripts/speakers-test
