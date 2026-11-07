@@ -132,7 +132,9 @@ struct HomeView: View {
         let failed: String? = { if case .failed(let m) = item.state { return m } else { return nil } }()
         return Button { onOpen(item.id) } label: {
             HStack(alignment: .top, spacing: 12) {
-                Text(item.date.formatted(date: .omitted, time: .shortened))
+                Text(item.date.formatted(date: .omitted, time: .shortened)
+                        .replacingOccurrences(of: "\u{202F}", with: " ")
+                        .replacingOccurrences(of: "\u{00A0}", with: " "))
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
