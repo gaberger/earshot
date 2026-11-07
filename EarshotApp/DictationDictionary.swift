@@ -15,6 +15,27 @@ struct DictationDictionary: Equatable {
         self.entries = entries
     }
 
+    /// Parses the Settings text form: one "heard => write" per line, split at the first "=>".
+    init(parsing text: String) {
+        var parsed: [Entry] = []
+        for line in text.components(separatedBy: .newlines) {
+            guard let arrow = line.range(of: "=>") else { continue }
+            let heard = Self.trimmed(String(line[..<arrow.lowerBound]))
+            if heard.isEmpty { continue }
+            let write = Self.trimmed(String(line[arrow.upperBound...]))
+            parsed.append(Entry(heard: heard, write: write))
+        }
+        self.entries = parsed
+    }
+
+    /// The text form: one "heard => write" per line, no trailing newline.
+    var asText: String {
+        entries
+            .filter { !Self.trimmed($0.heard).isEmpty }
+            .map { "\(Self.trimmed($0.heard)) => \($0.write)" }
+            .joined(separator: "\n")
+    }
+
     static let key = "dictationDictionary"
 
     private static func trimmed(_ s: String) -> String {

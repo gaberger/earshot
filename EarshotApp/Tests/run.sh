@@ -21,6 +21,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 # HotKeyTests also uses @main and fails itself if fewer than 30 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library HotKey.swift Tests/HotKeyTests.swift -o "$out/hotkey-tests"
 "$out/hotkey-tests"
-# DictionaryTests also uses @main and fails itself if fewer than 20 checks ran.
+# DictionaryTests also uses @main and fails itself if fewer than 26 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DictationDictionary.swift Tests/DictionaryTests.swift -o "$out/dictionary-tests"
 "$out/dictionary-tests"

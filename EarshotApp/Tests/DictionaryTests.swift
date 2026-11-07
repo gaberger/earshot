@@ -71,8 +71,19 @@ func dict(_ pairs: [(String, String)]) -> DictationDictionary {
         u = suite(); mine.save(to: u); DictationDictionary().save(to: u)
         checkTrue("saving an empty dictionary clears it", DictationDictionary.load(from: u).entries.isEmpty)
 
+        // MARK: the text form edited in Settings: one "heard => write" per line
+        let typed = "ear shot => Earshot\n\n  kay eight s=>k8s  \nno arrow here\n => nothing heard\num =>\n"
+        checkTrue("lines become entries, trimmed",
+                  DictationDictionary(parsing: typed) == dict([("ear shot", "Earshot"), ("kay eight s", "k8s"), ("um", "")]),
+                  "\(DictationDictionary(parsing: typed).entries)")
+        checkTrue("empty text is an empty dictionary", DictationDictionary(parsing: "").entries.isEmpty)
+        checkTrue("only the first arrow splits a line", DictationDictionary(parsing: "a => b => c") == dict([("a", "b => c")]))
+        checkTrue("entries read back as one line each", mine.asText == "ear shot => Earshot\nkay eight s => k8s", mine.asText)
+        checkTrue("the text form round-trips", DictationDictionary(parsing: mine.asText) == mine)
+        checkTrue("an empty dictionary reads back as no text", DictationDictionary().asText == "")
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 20 { print("VACUOUS: only \(checks) checks ran, need 20"); exit(1) }
+        if checks < 26 { print("VACUOUS: only \(checks) checks ran, need 26"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }
