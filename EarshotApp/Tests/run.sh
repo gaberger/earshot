@@ -42,3 +42,6 @@ python3 -I ../scripts/earshot-mcp-test
 python3 -I ../scripts/earshot-mcp-hardening-test
 # speakers: the transcript rewrite must be atomic (readers see old or new, never partial); fails itself if fewer than 7 checks ran.
 python3 -I ../scripts/speakers-test
+# HighlightTests also uses @main and fails itself if fewer than 28 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift WindowHighlight.swift Tests/HighlightTests.swift -o "$out/highlight-tests"
+"$out/highlight-tests"

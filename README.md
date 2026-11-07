@@ -111,6 +111,11 @@ let go. A second or two later the text appears where your cursor is.
   near the bottom of the screen you're on, so you can see the microphone is hearing you. It switches
   to **Transcribing…** after you let go, then disappears as the text arrives. It never takes focus
   from the field you're typing into.
+- **The window outline.** While you dictate, a little fire licks around the edge of the window your
+  words will be typed into (low embers while it transcribes), so you can see where they will land. Earshot
+  reads only that window's position and size, never its title or contents. With **Reduce Motion** on you
+  get a plain static border instead. Turn it off under **Settings → Dictation → Highlight the window I am
+  dictating into**.
 
 - It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
 - **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved.

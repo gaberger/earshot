@@ -91,6 +91,7 @@ struct DictationSettingsView: View {
     @AppStorage(DictationPrefs.enabled) private var enabled = false
     @AppStorage(DictationPrefs.toggle) private var toggle = false
     @AppStorage(DictationPrefs.cleanup) private var cleanup = false
+    @AppStorage(DictationPrefs.highlight) private var highlight = true
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
     @State private var trusted = AXIsProcessTrusted()
@@ -160,6 +161,15 @@ struct DictationSettingsView: View {
                         .pickerStyle(.segmented)
                         .labelsHidden()
                         .frame(width: 160)
+                    }
+                }
+
+                SettingsSection("Highlight", dimmed: !enabled) {
+                    SettingsRow("Highlight the window I am dictating into",
+                                detail: "A little fire around the window your words will be typed into. Respects Reduce Motion.") {
+                        Toggle("", isOn: $highlight)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
                     }
                 }
 

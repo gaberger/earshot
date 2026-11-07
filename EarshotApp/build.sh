@@ -13,8 +13,11 @@ APP="$HOME/Applications/Earshot.app"
 build=$(mktemp -d)
 trap 'rm -rf "$build"' EXIT
 
+# Every .swift file in this directory is part of the app (Tests/ is a subdirectory, so it is not
+# matched). A glob, not a list: a hand-kept list silently fell behind when DictationCleanup.swift
+# was added, and the app then failed to build while the typecheck gate, which globs, was green.
 swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 \
-  Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationLog.swift NotesStore.swift NoteSession.swift NoteRecorder.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift NotesView.swift RecordingViews.swift AppNav.swift ChromeViews.swift SearchIndex.swift DictationSettingsView.swift -o "$build/Earshot"
+  *.swift -o "$build/Earshot"
 
 # The app icon is a layered Icon Composer file. actool turns it into Assets.car (Liquid Glass
 # icon for macOS 26) plus Earshot.icns (fallback), as Apple's guidelines ask.

@@ -42,6 +42,9 @@ final class DictationService: ObservableObject {
     /// A shortcut another app refused to give up; not retried until the saved shortcut changes.
     private var rejectedKey: HotKey?
     private let hud = DictationHUD()
+    /// The target window's outline, read once at key-down; nil when off or nothing sensible to draw.
+    private var highlightFrame: CGRect?
+    let highlighter = WindowHighlighter()
     /// True while the cleanup (tidy) stage runs, so the indicator can name it.
     private(set) var tidying = false
 
@@ -131,6 +134,8 @@ final class DictationService: ObservableObject {
         rejectedKey = nil
         discardKeptClip()
         hud.hide()
+        highlighter.hide()
+        highlightFrame = nil
         // Turning it off mid-capture must not leave the microphone open. A tick far in the future
         // stops a capture in either mode; key up is ignored in tap-to-toggle mode.
         send(.tick(at: ProcessInfo.processInfo.systemUptime + 3600))
@@ -141,6 +146,7 @@ final class DictationService: ObservableObject {
         // A changed preference applies at the next dictation, never mid-capture.
         if pressed, session.state == .idle {
             session = DictationSession(DictationSession.Config(toggle: DictationPrefs.isToggle()))
+            highlightFrame = DictationPrefs.isHighlightEnabled() ? captureTargetWindow() : nil
         }
         send(pressed ? .keyDown(at: now, meetingRecording: isMeetingRecording()) : .keyUp(at: now))
     }
@@ -156,6 +162,43 @@ final class DictationService: ObservableObject {
 
     private func refreshHUD() {
         hud.update(state: session.state, tidying: tidying, level: { [weak self] in self?.recorder?.level ?? -160 })
+        // Tidying is the same wait as transcribing, so it looks the same.
+        let state: DictationSession.State = tidying ? .transcribing : session.state
+        let style = WindowHighlight.style(for: state,
+                                          reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        if let highlightFrame, style != .none {
+            highlighter.show(frame: highlightFrame, style: style)
+        } else {
+            highlighter.hide()
+            if session.state == .idle { highlightFrame = nil }
+        }
+    }
+
+    /// The outline of the frontmost app's focused window, in AppKit coordinates, or nil. Reads
+    /// geometry only (position and size): never a title or any text. Skipped during secure input.
+    private func captureTargetWindow() -> CGRect? {
+        guard !IsSecureEventInputEnabled() else { return nil }
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        func copy(_ attribute: String, of source: AXUIElement) -> CFTypeRef? {
+            var value: CFTypeRef?
+            return AXUIElementCopyAttributeValue(source, attribute as CFString, &value) == .success ? value : nil
+        }
+        guard let raw = copy(kAXFocusedWindowAttribute, of: element) ?? copy(kAXMainWindowAttribute, of: element),
+              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        let window = raw as! AXUIElement
+        guard let posRef = copy(kAXPositionAttribute, of: window), CFGetTypeID(posRef) == AXValueGetTypeID(),
+              let sizeRef = copy(kAXSizeAttribute, of: window), CFGetTypeID(sizeRef) == AXValueGetTypeID()
+        else { return nil }
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size) else { return nil }
+        let screens = NSScreen.screens
+        let flipped = WindowHighlight.appKitFrame(fromAX: CGRect(origin: origin, size: size),
+                                                  primaryHeight: screens.first?.frame.height ?? 0)
+        return WindowHighlight.rect(forWindow: flipped, screens: screens.map(\.frame))
     }
 
     /// A one-second tick runs only while listening, so the core can stop a stuck key.

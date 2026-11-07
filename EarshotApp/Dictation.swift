@@ -14,6 +14,13 @@ enum DictationPrefs {
         d.object(forKey: cleanup) as? Bool ?? false
     }
 
+    static let highlight = "dictationHighlight"
+
+    /// On by default, because it only draws. A missing or wrongly typed value reads as on.
+    static func isHighlightEnabled(_ d: UserDefaults = .standard) -> Bool {
+        d.object(forKey: highlight) as? Bool ?? true
+    }
+
     static let toggle = "dictationToggle"
 
     static func isToggle(_ d: UserDefaults = .standard) -> Bool {
