@@ -86,6 +86,7 @@ Every summary starts with the date, length and speakers, and ends with action it
 | <kbd>⌘</kbd> <kbd>R</kbd> | Record / Stop |
 | <kbd>⌘</kbd> <kbd>O</kbd> | Import a file |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the open tab |
+| <kbd>Esc</kbd> or <kbd>⌘</kbd> <kbd>[</kbd> | Go back from an open recording to the Recordings list |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings: microphone, speakers, default template |
 | <kbd>⌘</kbd> <kbd>?</kbd> | How Earshot works |
 | <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> | Dictate: hold, speak, release (in any app, once turned on in Settings; you can change the keys) |

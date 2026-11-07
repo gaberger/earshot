@@ -51,7 +51,7 @@ func setUpDictationOn() {
 }
 
 /// Composes the real views in the same layout as ContentView in Earshot.swift.
-@MainActor func windowShell(section: AppSection, query: String, hits: [SearchHit], showRecordBar: Bool, content: AnyView) -> AnyView {
+@MainActor func windowShell(section: AppSection, query: String, hits: [SearchHit], showRecordBar: Bool, back: BackLink? = nil, content: AnyView) -> AnyView {
     let sidebar = VStack(alignment: .leading, spacing: 12) {
         HStack {
             brandMark()
@@ -69,7 +69,7 @@ func setUpDictationOn() {
     .background(Color(nsColor: .underPageBackgroundColor))
 
     let detail = VStack(spacing: 0) {
-        TopBar(title: section.title, query: .constant(query), hits: hits, focusToken: 0, onPick: { _ in })
+        TopBar(title: section.title, query: .constant(query), hits: hits, focusToken: 0, onPick: { _ in }, back: back)
         content.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .overlay(alignment: .bottom) {
@@ -265,6 +265,22 @@ func setUpDictationOn() {
             setUpDictationOn()
             return windowShell(section: .dictation, query: "", hits: [], showRecordBar: false,
                                content: AnyView(ScrollView { DictationSettingsView(onEnable: {}).padding(24) }))
+        }),
+        ("window-detail", {
+            windowShell(section: .recordings, query: "", hits: [], showRecordBar: false,
+                        back: DetailNav.backLink(inRecordings: true, openTitle: "Weekly sync with the platform team"),
+                        content: AnyView(VStack(spacing: 0) {
+                            RecordingHeader(title: "Weekly sync with the platform team", date: Date(),
+                                            chips: ["42 min", "Transcribed", "Summarized"],
+                                            tabs: ["Summary", "Transcript"], selectedTab: .constant(0),
+                                            actions: [
+                                                HeaderAction(title: "Summarize", icon: "sparkles", enabled: true, action: {}),
+                                                HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true, action: {}),
+                                                HeaderAction(title: "Finder", icon: "folder", enabled: true, action: {}),
+                                            ], onRename: {})
+                                .padding(24)
+                            Spacer()
+                        }))
         }),
         ("window-search", {
             windowShell(section: .recordings, query: "roadmap", hits: sampleHits, showRecordBar: true,

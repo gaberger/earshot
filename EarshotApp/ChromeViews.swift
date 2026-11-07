@@ -22,9 +22,15 @@ struct TopBar: View {
     let hits: [SearchHit]
     let focusToken: Int
     let onPick: (SearchHit) -> Void
+    let back: BackLink?
+    let onBack: () -> Void
     @FocusState private var focused: Bool
+    @State private var backHovered = false
 
-    init(title: String, query: Binding<String>, hits: [SearchHit], focusToken: Int, onPick: @escaping (SearchHit) -> Void) {
+    init(title: String, query: Binding<String>, hits: [SearchHit], focusToken: Int, onPick: @escaping (SearchHit) -> Void,
+         back: BackLink? = nil, onBack: @escaping () -> Void = {}) {
+        self.back = back
+        self.onBack = onBack
         self.title = title
         self._query = query
         self.hits = hits
@@ -39,7 +45,11 @@ struct TopBar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(title).font(.callout).foregroundStyle(.secondary)
+                if let back {
+                    backControl(back)
+                } else {
+                    Text(title).font(.callout).foregroundStyle(.secondary)
+                }
                 Spacer()
                 searchField
             }
@@ -59,6 +69,34 @@ struct TopBar: View {
         .onExitCommand {
             query = ""
             focused = false
+        }
+    }
+
+    private func backControl(_ back: BackLink) -> some View {
+        HStack(spacing: 6) {
+            Button(action: onBack) {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                    Text(back.label)
+                }
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 6).fill(backHovered ? Color.primary.opacity(0.08) : Color.clear))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { backHovered = $0 }
+            .keyboardShortcut("[", modifiers: .command)
+            .help(DetailNav.help)
+            .accessibilityLabel(DetailNav.accessibilityLabel)
+            Text("/").font(.callout).foregroundStyle(.tertiary)
+            Text(back.trail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 

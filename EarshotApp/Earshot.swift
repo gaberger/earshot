@@ -1590,6 +1590,8 @@ struct HelpView: View {
                 }
 
                 section("The header bar", "menubar.rectangle") {
+                    item("Back to Recordings", "Open a recording and a Recordings / name link appears at the top left. "
+                         + "Click it, press Esc or Command-[, or click Recordings in the sidebar, to return to the list.")
                     item("Record / Stop", "Starts and stops the microphone. The timer shows how long it has recorded. ⌘R.")
                     item("Automatic stop", "If no one speaks for a while, Earshot stops recording by itself. "
                          + "It counts down for 30 seconds first, and Keep recording carries on. "
@@ -2115,17 +2117,6 @@ struct ContentView: View {
             RecordingNow(lib: lib, start: start)
         } else if let r = lib.selected {
             VStack(alignment: .leading, spacing: 0) {
-                Button { lib.selection = nil } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Recordings")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 20)
-                .padding(.top, 12)
                 RecordingDetail(lib: lib, rec: r)
             }
         } else {
@@ -2141,7 +2132,17 @@ struct ContentView: View {
                     Text("Earshot").font(.headline)
                     Spacer()
                 }
-                SidebarNav(selection: $nav.section)
+                SidebarNav(selection: Binding(
+                    get: { nav.section },
+                    set: { new in
+                        switch DetailNav.onSidebarTap(tappedRecordings: new == .recordings, hasOpenRecording: lib.selection != nil) {
+                        case .showRecordingsList:
+                            lib.selection = nil
+                            nav.section = .recordings
+                        case .openSection:
+                            nav.section = new
+                        }
+                    }))
                 Spacer()
                 SidebarStatusCard(ready: !lib.recording,
                                   detail: lib.recording ? "Recording" : (lib.micName ?? "Default microphone"))
@@ -2154,9 +2155,20 @@ struct ContentView: View {
         } detail: {
             VStack(spacing: 0) {
                 TopBar(title: nav.section.title, query: $query, hits: hits,
-                       focusToken: nav.focusSearch, onPick: pick)
+                       focusToken: nav.focusSearch, onPick: pick,
+                       back: lib.recording ? nil : DetailNav.backLink(inRecordings: nav.section == .recordings,
+                                                                      openTitle: lib.selected?.title),
+                       onBack: { lib.selection = nil })
                 detailContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onExitCommand {
+                        if DetailNav.escapeReturnsToList(inRecordings: nav.section == .recordings,
+                                                         hasOpenRecording: lib.selection != nil,
+                                                         searchHasText: !query.isEmpty,
+                                                         editingText: lib.editingSummary || lib.renaming != nil) {
+                            lib.selection = nil
+                        }
+                    }
                     .overlay(alignment: .bottom) {
                         if nav.section == .recordings {
                             RecordBar(recordingSince: lib.startedAt,

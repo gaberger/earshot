@@ -63,3 +63,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Bran
 "$out/brand-tests"
 # The views use the brand tokens, the root tint is set, and the icon follows concept B (ADR-2611072000).
 bash Tests/brand-check.sh
+# DetailNavTests also uses @main and fails itself if fewer than 18 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DetailNav.swift Tests/DetailNavTests.swift -o "$out/detail-nav-tests"
+"$out/detail-nav-tests"

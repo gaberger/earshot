@@ -15,8 +15,8 @@ import sys
 from PIL import Image
 
 D = "/tmp/earshot-ui"
-NAMES = ["window-recordings", "window-notes", "window-dictation", "window-search"]
-FLOOR = 14
+NAMES = ["window-recordings", "window-notes", "window-dictation", "window-search", "window-detail"]
+FLOOR = 18
 checks = 0
 failures = 0
 
@@ -115,6 +115,30 @@ for y in range(70, 200):
         if sum(abs(pa[x, y][i] - pb[x, y][i]) for i in range(3)) > 60:
             sdiff += 1
 check("the sidebar is the same in the search window (under 200 differing pixels)", sdiff < 200, sdiff)
+
+# MARK: an open recording: Recordings stays selected, and the top bar gives a clear way back to the list
+det, rec = ims["window-detail"], ims["window-recordings"]
+pts = [y for _x, y, p in region_pixels(det, (0, 74, SIDEBAR, 300)) if is_orange(p)]
+cy = sum(pts) / len(pts) if pts else -1
+check("window-detail: Recordings stays the selected category in the sidebar",
+      abs(cy - centroid["window-recordings"]) <= 6, (cy, centroid["window-recordings"]))
+
+
+def bright(im, box):
+    return sum(1 for _x, _y, p in region_pixels(im, box) if 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2] > 190)
+
+
+def ink(im, box, bg=(30, 30, 30)):
+    return sum(1 for _x, _y, p in region_pixels(im, box) if sum(abs(p[i] - bg[i]) for i in range(3)) > 120)
+
+
+BAR = (SIDEBAR + 20, 30, 740, 80)  # the top bar's left part: the plain title, or the back link and trail
+b_det, b_rec = bright(det, BAR), bright(rec, BAR)
+check("the back link is bright text, clearly brighter than the plain grey section title (at least 40 bright pixels and 3 times more)",
+      b_det >= 40 and b_det >= 3 * max(1, b_rec), (b_det, b_rec))
+i_det, i_rec = ink(det, BAR), ink(rec, BAR)
+check("the recording's name follows the back link (at least 150 more text pixels than the plain title)",
+      i_det - i_rec >= 150, (i_det, i_rec))
 
 print("%d checks, %d failed" % (checks, failures))
 if checks < FLOOR:
