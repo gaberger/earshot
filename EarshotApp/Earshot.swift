@@ -1065,7 +1065,8 @@ struct SettingsView: View {
             }
 
             Section {
-                DictationSettingsView(onEnable: { DictationService.requestPermissions() })
+                DictationSettingsView(onEnable: { DictationService.requestPermissions() },
+                                      onResetPermission: { DictationService.resetAccessibilityPermission() })
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }

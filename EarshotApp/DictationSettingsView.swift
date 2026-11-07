@@ -87,6 +87,7 @@ private struct CorrectionRow: Identifiable {
 
 struct DictationSettingsView: View {
     let onEnable: () -> Void
+    var onResetPermission: () -> Void = {}
     @AppStorage(DictationPrefs.enabled) private var enabled = false
     @AppStorage(DictationPrefs.toggle) private var toggle = false
     @State private var hotKey = HotKey.load()
@@ -96,8 +97,9 @@ struct DictationSettingsView: View {
     @State private var corrections: [CorrectionRow] =
         DictationDictionary.load().entries.map { CorrectionRow(heard: $0.heard, write: $0.write) }
 
-    init(onEnable: @escaping () -> Void) {
+    init(onEnable: @escaping () -> Void, onResetPermission: @escaping () -> Void = {}) {
         self.onEnable = onEnable
+        self.onResetPermission = onResetPermission
     }
 
     private func save() {
@@ -117,8 +119,9 @@ struct DictationSettingsView: View {
                         }
                 }
                 if enabled && !trusted {
-                    SettingsBanner("Earshot is not allowed to type for you yet. If Earshot is already in the list, remove it with the minus button and add it again; macOS forgets the permission after an update.",
-                                   actionTitle: "Open Accessibility settings") {
+                    SettingsBanner("Earshot is not allowed to type for you yet. Press Reset and allow, then turn Earshot on in the list. Until then, what you dictate is copied to the clipboard.",
+                                   actionTitle: "Reset and allow") {
+                        onResetPermission()
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
                         }
