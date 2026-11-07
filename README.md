@@ -1,13 +1,12 @@
 <div align="center">
 
-<img src="assets/earshot-logo.svg" alt="Earshot logo: sound waves reaching an ear" width="140">
+<img src="assets/earshot-logo.svg" alt="Earshot logo: a charcoal tile with an orange ear and orange sound waves" width="140">
 
 # Earshot
 
 **Private meeting notes that never leave your Mac.**
 
-Record a meeting, get a transcript with speaker labels, and a summary in the format you need —<br>
-all on-device, with no account and no cloud, and no internet connection while you use it. (Setup downloads the speech models once, and the first speaker detection downloads its helper libraries; and if you connect an AI agent through the MCP server, what you let it read goes to that agent.)
+Record a meeting and get a transcript with speaker labels and a summary. Dictate into any app. All on your Mac.
 
 <img src="assets/badges/platform.svg" alt="macOS 26.4+ on Apple silicon">
 <img src="assets/badges/privacy.svg" alt="100% on-device">
@@ -19,11 +18,33 @@ all on-device, with no account and no cloud, and no internet connection while yo
 </div>
 
 > [!IMPORTANT]
-> **Nothing leaves this Mac.** Every model runs locally: Whisper for speech, a voice model for
-> speakers, and Apple's on-device model for summaries. Turn off Wi-Fi and it all still works.
-> Earshot never uses Apple's Private Cloud Compute.
+> **Every model runs on this Mac.** No account, no cloud, and Earshot never uses Apple's Private
+> Cloud Compute. See [Privacy](#-privacy) for the few things that can leave the Mac.
 
----
+## 🖼️ Screenshots
+
+<img src="assets/screenshots/recordings.png" alt="The Recordings category: sidebar with Recordings, Notes and Dictation, the Ready status card, Settings and Help, the search bar, recordings by day, Import and Record" width="900">
+
+*Recordings: the sidebar with Recordings, Notes and Dictation, the Ready status card, Settings and Help, the search bar, your recordings by day, and Import and Record.*
+
+<img src="assets/screenshots/search.png" alt="Typing in the search bar finds recordings and settings" width="900">
+
+*Search: typing in the search bar finds recordings and settings.*
+
+<img src="assets/screenshots/recording-open.png" alt="An open recording with a back link, Recordings / name, at the top left, and Summary and Transcript tabs" width="900">
+
+*An open recording shows a back link, Recordings / name, at the top left, with Summary and Transcript tabs.*
+
+<img src="assets/screenshots/notes.png" alt="The Notes category with your own voice notes grouped by day" width="900">
+
+*Notes: your own voice notes.*
+
+<img src="assets/screenshots/dictation.png" alt="The Dictation category with every option, and the amber banner shown until Accessibility is allowed" width="900">
+
+*Dictation: every option. The amber banner is the real prompt shown until Accessibility is allowed.*
+
+All screenshots show sample data and are renders of the real app views, not captures of anyone's recordings. The title bar is drawn, and the native toolbar, the bottom status bar and the dictation fire outline and pill are not in them.
+
 
 ## ✨ Features
 
@@ -37,6 +58,12 @@ all on-device, with no account and no cloud, and no internet connection while yo
 | ✏️ **Edit** | Fix the summary in a rich-text editor: headings, bold, bullets, checkboxes. Edited summaries are never replaced without asking. |
 | 🌍 **Translate** | Turns speech in other languages into English text. |
 | ⌨️ **Dictate** | Hold a shortcut (<kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>Space</kbd> unless you change it) in any app, speak, let go, and Earshot types what you said, into a form, an email, anywhere. A small **Listening…** indicator shows while it hears you. Off until you turn it on in Settings. |
+| 🧩 **Categories** | The sidebar has three: **Recordings** (meetings and calls), **Notes** (your own voice notes) and **Dictation** (typing into any app). |
+| 🔎 **Search** | Search across recordings, notes and settings from the search bar, or press <kbd>⌘</kbd> <kbd>K</kbd>. |
+| 🧹 **Tidy up what I say** | Removes ums and stutters from dictated text using Apple's on-device model. Off until you switch it on. |
+| 🔥 **Window outline** | A fire outline shows which window dictation will type into. On by default; it can be turned off in Settings. |
+| ↩️ **Press Return after typing** | Presses Return once dictated text is typed, so a message sends. Off until you switch it on. |
+| 🔌 **Agents** | A read-only MCP server lets an agent read your recordings, and a hook can speak Claude Code's replies aloud. Both are off until you set them up. |
 | 🗂️ **Timeline** | Every recording by day, named by its summary or by you. |
 | 🧭 **Menu bar** | The ear at the top of the screen: record without opening the window, see the timer, jump to recent recordings. |
 | 📊 **Status bar** | What Earshot is doing now, plus live CPU, GPU and memory use, along the bottom of the window. |
@@ -85,6 +112,7 @@ Every summary starts with the date, length and speakers, and ends with action it
 |---|---|
 | <kbd>⌘</kbd> <kbd>R</kbd> | Record / Stop |
 | <kbd>⌘</kbd> <kbd>O</kbd> | Import a file |
+| <kbd>⌘</kbd> <kbd>K</kbd> | Search recordings, notes and settings |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the open tab |
 | <kbd>Esc</kbd> or <kbd>⌘</kbd> <kbd>[</kbd> | Go back from an open recording to the Recordings list |
 | <kbd>⌘</kbd> <kbd>,</kbd> | Settings: microphone, speakers, default template |
@@ -134,6 +162,25 @@ Earshot now has three separate functions: **Recordings** (meetings and calls), *
 - It won't type into password fields, and it's off while a meeting is being recorded.
 - The app isn't notarized, so macOS may forget the Accessibility permission after an update. If
   Dictation stops typing, switch Earshot off and on again in the Accessibility list.
+
+## 🔒 Privacy
+
+**What stays on the Mac.** Audio is recorded, transcribed (Whisper), labelled by speaker and
+summarized (Apple's on-device model) on this Mac. There is no account, no server and no analytics.
+Earshot itself sends nothing about you or your recordings anywhere. The activity log records steps
+and results, never what was said.
+
+**What can leave the Mac, or be seen, stated plainly:**
+
+- **One-time downloads.** The speech models, the speaker packages (`sherpa-onnx`, fetched by `uv` the
+  first time speakers are detected) and Apple's on-device model are downloaded once. After that,
+  nothing needs the internet.
+- **The clipboard.** When dictated text cannot be typed safely (Earshot is not allowed to type, or you
+  switched windows), it is left on the clipboard. It stays there until you copy something else, and a
+  clipboard-history tool may record it.
+- **Any agent you connect.** Through the MCP server or the spoken replies hook, an agent can see what
+  you let it read, and it may send that text to its own provider. That is your choice and outside
+  what Earshot controls.
 
 ## 🚀 Installation
 
@@ -215,7 +262,7 @@ disk image afterwards, run `bash EarshotApp/make-dmg.sh` (→ `Earshot-<version>
 
 ### Step 4: Open Earshot for the first time
 
-1. **Open the app.** The disk image app has no Apple Developer ID and isn't notarized by Apple,
+1. **Open the app.** The disk image app has no Apple Developer ID and is not notarized by Apple,
    so the first time, macOS says it can't check it. Click **Done**, then go to
    **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
    (An app you built yourself opens normally.)
@@ -375,6 +422,9 @@ The tag makes CI build the disk image and publish it as a
 [GitHub release](https://github.com/gaberger/earshot/releases) with the notes file.
 CI stops if the tag and `VERSION` don't match.
 
+Design decisions are recorded as ADRs in `docs/adrs`, and release notes live in `docs/releases`.
+`scripts/readme-check` guards this README (structure, links, images and wording).
+
 ## 🗂️ Project layout
 
 ```
@@ -390,17 +440,24 @@ CI stops if the tag and `VERSION` don't match.
 │   └── make-dmg.sh        packs the built app into Earshot-<version>.dmg (drag to Applications)
 ├── scripts/
 │   ├── transcribe         whisper.cpp wrapper
-│   └── speakers           speaker detection (Python, run by uv)
+│   ├── speakers           speaker detection (Python, run by uv)
+│   └── readme-check       gate for this README: python3 -I scripts/readme-check
+├── docs/
+│   ├── adrs/              design decisions, one ADR each
+│   ├── releases/          release notes, one file per version
+│   ├── brand/             logo and brand explorations
+│   └── website/           website copy and screenshot notes
 └── assets/
     ├── Earshot.icon/      the app icon: layered Icon Composer file (background + glass layers)
     ├── menubar.svg        the menu bar ear (a template image macOS tints)
     ├── earshot-logo.svg   the flat logo for this README
+    ├── screenshots/       the five app screenshots above (sample data)
     └── badges/            the badges above, drawn locally
 ```
 
 <div align="center">
 <br>
-<sub>Built on <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a>,
-<a href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> and Apple's Foundation Models framework.<br>
-Local repository · not published.</sub>
+<sub>Open source under the <a href="LICENSE">MIT License</a>.<br>
+Built on <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a>,
+<a href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> and the Apple Foundation Models framework.</sub>
 </div>
