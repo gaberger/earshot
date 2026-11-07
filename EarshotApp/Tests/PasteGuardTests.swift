@@ -40,8 +40,30 @@ func t(_ pid: Int32, _ x: CGFloat = 100, _ y: CGFloat = 200, _ w: CGFloat = 800,
                   PasteGuard.decide(target: t(1, -1500, 100), current: t(1, -1500, 100)) == .paste
                   && PasteGuard.decide(target: t(1, -1500, 100), current: t(1, 100, 100)) == .hold)
 
+
+        // MARK: identify the window and the focused field, not the geometry (ADR amendment)
+        func w(_ pid: Int32, window: Int?, focus: Int?, frame: CGRect? = CGRect(x: 0, y: 0, width: 1440, height: 900)) -> PasteTarget {
+            PasteTarget(pid: pid, frame: frame, window: window, focus: focus)
+        }
+        checkTrue("two windows of one app with the identical frame: hold",
+                  PasteGuard.decide(target: w(1, window: 11, focus: 21), current: w(1, window: 12, focus: 21)) == .hold)
+        checkTrue("the same window moved far away: paste",
+                  PasteGuard.decide(target: w(1, window: 11, focus: 21), current: w(1, window: 11, focus: 21, frame: CGRect(x: 900, y: 500, width: 300, height: 200))) == .paste)
+        checkTrue("the same window but another tab or pane (different focus): hold",
+                  PasteGuard.decide(target: w(1, window: 11, focus: 21), current: w(1, window: 11, focus: 22)) == .hold)
+        checkTrue("the same window and the same focus: paste",
+                  PasteGuard.decide(target: w(1, window: 11, focus: 21), current: w(1, window: 11, focus: 21)) == .paste)
+        checkTrue("the same window, focus unknown on one side: the window decides, paste",
+                  PasteGuard.decide(target: w(1, window: 11, focus: nil), current: w(1, window: 11, focus: 22)) == .paste)
+        checkTrue("a different app with identical tokens: hold",
+                  PasteGuard.decide(target: w(1, window: 11, focus: 21), current: w(2, window: 11, focus: 21)) == .hold)
+        checkTrue("window token on one side only: falls back to the frame, same frame pastes",
+                  PasteGuard.decide(target: w(1, window: 11, focus: nil), current: w(1, window: nil, focus: nil)) == .paste)
+        checkTrue("window token on one side only: falls back to the frame, a different frame holds",
+                  PasteGuard.decide(target: w(1, window: 11, focus: nil), current: w(1, window: nil, focus: nil, frame: CGRect(x: 700, y: 50, width: 500, height: 400))) == .hold)
+
         print("\(checks) checks, \(failures) failed")
-        if checks < 14 { print("VACUOUS: only \(checks) checks ran, need 14"); exit(1) }
+        if checks < 22 { print("VACUOUS: only \(checks) checks ran, need 22"); exit(1) }
         exit(failures == 0 ? 0 : 1)
     }
 }

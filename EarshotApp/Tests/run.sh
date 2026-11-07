@@ -55,6 +55,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 "$out/speech-stop-tests"
 # The in-app Help must mention every user-facing feature (it went several features stale once).
 bash Tests/help-check.sh
-# PasteGuardTests also uses @main and fails itself if fewer than 14 checks ran.
+# PasteGuardTests also uses @main and fails itself if fewer than 22 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library PasteGuard.swift Tests/PasteGuardTests.swift -o "$out/paste-guard-tests"
 "$out/paste-guard-tests"
