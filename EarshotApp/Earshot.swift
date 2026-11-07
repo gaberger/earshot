@@ -1904,6 +1904,21 @@ enum Summarizer {
 
 // MARK: - Views
 
+struct NotesPage: View {
+    @ObservedObject var store: NotesStore
+    @AppStorage(DictationPrefs.keepLog) private var keepLog = true
+
+    var body: some View {
+        NotesView(items: store.items, keepLog: keepLog, shortcut: HotKey.load().display,
+                  onCopy: { text in
+                      NSPasteboard.general.clearContents()
+                      NSPasteboard.general.setString(text, forType: .string)
+                  },
+                  onDelete: { store.remove(id: $0) },
+                  onClear: { store.clear() })
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var lib: Library
     @ObservedObject var nav: Navigator
@@ -1922,6 +1937,8 @@ struct ContentView: View {
         SearchDestination(id: "microphone", title: "Microphone", detail: "Settings · choose what Earshot records from", keywords: ["input", "mic"]),
         SearchDestination(id: "autostop", title: "Stop recording automatically", detail: "Settings · stop after silence", keywords: ["silence", "auto", "stop"]),
         SearchDestination(id: "speakers", title: "Speakers", detail: "Settings · identify who spoke", keywords: ["diarization", "names"]),
+        SearchDestination(id: "noteslog", title: "Notes log", detail: "Notes · what you dictated, kept on this Mac", keywords: ["notes", "log", "history", "dictations"]),
+        SearchDestination(id: "keeplog", title: "Keep a log of what I dictate", detail: "Dictation · save dictated text as notes", keywords: ["log", "history", "privacy"]),
         SearchDestination(id: "login", title: "Open at login", detail: "Settings · start Earshot when you log in", keywords: ["startup", "launch"]),
     ]
 
@@ -1937,7 +1954,11 @@ struct ContentView: View {
             nav.section = .recordings
             lib.selection = id
         case let .destination(id, _, _):
-            nav.section = ["shortcut", "mode", "corrections", "accessibility"].contains(id) ? .dictation : .settings
+            if id == "noteslog" {
+                nav.section = .notes
+            } else {
+                nav.section = ["shortcut", "mode", "corrections", "accessibility", "keeplog"].contains(id) ? .dictation : .settings
+            }
         }
         query = ""
     }
@@ -2007,7 +2028,10 @@ struct ContentView: View {
             }
         } else if nav.section == .dictation {
             DictationPage(onEnable: { DictationService.requestPermissions() },
-                          onResetPermission: { DictationService.resetAccessibilityPermission() })
+                          onResetPermission: { DictationService.resetAccessibilityPermission() },
+                          onClearNotes: { lib.notes.clear() })
+        } else if nav.section == .notes {
+            NotesPage(store: lib.notes)
         } else if lib.recording, let start = lib.startedAt {
             RecordingNow(lib: lib, start: start)
         } else if let r = lib.selected {
