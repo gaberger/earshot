@@ -41,6 +41,10 @@ struct EarshotApp: App {
             CommandGroup(after: .newItem) {
                 RecordCommands(lib: library)
             }
+            CommandGroup(after: .pasteboard) {
+                Button("Copy Current Tab") { library.copyCurrentTab() }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
         }
 
         Window("How Earshot Works", id: HelpView.windowID) {
@@ -2017,32 +2021,6 @@ struct HeaderControls: ToolbarContent {
                 Translate to English. When on, speech in another language is written out in English. \
                 When off, the text stays in the language that was spoken. Applies to the next transcription.
                 """)
-
-            Button {
-                if let id = lib.selection { lib.summarize(id) }
-            } label: {
-                Label("Summarize", systemImage: "sparkles")
-            }
-            .labelStyle(.titleAndIcon)
-            .disabled(lib.selected?.hasTranscript != true || lib.selection.map(lib.summarizing.contains) == true)
-            .help("Write a new summary of the selected recording with Apple's on-device model. Nothing leaves this Mac.")
-
-            Button(action: lib.copyCurrentTab) {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            .labelStyle(.titleAndIcon)
-            .keyboardShortcut("c", modifiers: [.command, .shift])
-            .disabled(lib.selected == nil)
-            .help("Copy the text of the open tab, transcript or summary, to the clipboard (⇧⌘C).")
-
-            Button {
-                if let r = lib.selected { lib.showInFinder(r) }
-            } label: {
-                Label("Finder", systemImage: "folder")
-            }
-            .labelStyle(.titleAndIcon)
-            .disabled(lib.selected == nil)
-            .help("Show this recording's files (audio, transcript, summary) in Finder.")
         }
     }
 }
@@ -2163,46 +2141,10 @@ struct RecordingNow: View {
     let start: Date
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(.red)
-                .symbolEffect(.pulse)
-            TimelineView(.periodic(from: start, by: 1)) { ctx in
-                Text(elapsed(from: start, to: ctx.date))
-                    .font(.system(size: 40, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-            }
-            VStack(spacing: 8) {
-                Label(lib.micName ?? "Microphone", systemImage: "mic.fill")
-                    .font(.callout)
-                TimelineView(.animation(minimumInterval: 0.08)) { _ in
-                    LevelBar(decibels: lib.micLevel())
-                }
-                Text("Wrong microphone? Stop, then choose another in Settings (⌘,).")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            if let s = lib.endingIn {
-                VStack(spacing: 8) {
-                    Label("No one has spoken for a while. Stopping in \(s) s", systemImage: "hourglass")
-                        .foregroundStyle(.orange)
-                    Button("Keep recording") { lib.keepRecording() }
-                        .buttonStyle(.bordered)
-                }
-            } else {
-                Text("Recording. Click Stop when you finish, and the text appears here.")
-                    .foregroundStyle(.secondary)
-            }
-            Button(action: lib.toggleRecording) {
-                Label("Stop", systemImage: "stop.fill").frame(minWidth: 120)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.extraLarge)
-        }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        RecordingScreen(start: start, micName: lib.micName ?? "Microphone",
+                        level: { lib.micLevel() }, endingIn: lib.endingIn,
+                        onKeepRecording: { lib.keepRecording() },
+                        onStop: { lib.toggleRecording() })
     }
 }
 
@@ -2214,30 +2156,28 @@ struct RecordingDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(rec.title)
-                        .font(.title2.weight(.semibold))
-                        .lineLimit(2)
-                        .onTapGesture(count: 2) { lib.renaming = rec.id }
-                        .help("Double-click to rename")
-                    Button { lib.renaming = rec.id } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Rename this recording")
-                }
-                Text(rec.date.formatted(date: .complete, time: .shortened))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Picker("View", selection: $lib.tab) {
-                ForEach(Library.Tab.allCases, id: \.self) { Text($0.rawValue) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 280)
+            RecordingHeader(
+                title: rec.title,
+                date: rec.date,
+                chips: [rec.hasTranscript ? "Transcribed" : "Not transcribed"]
+                    + (rec.hasSummary ? ["Summarized"] : [])
+                    + (rec.summaryIsEdited ? ["Summary edited"] : []),
+                tabs: Library.Tab.allCases.map(\.rawValue),
+                selectedTab: Binding<Int>(
+                    get: { Library.Tab.allCases.firstIndex(of: lib.tab) ?? 0 },
+                    set: { lib.tab = Library.Tab.allCases[$0] }
+                ),
+                actions: [
+                    HeaderAction(title: "Summarize", icon: "sparkles",
+                                 enabled: rec.hasTranscript && !lib.summarizing.contains(rec.id),
+                                 action: { lib.summarize(rec.id) }),
+                    HeaderAction(title: "Copy", icon: "doc.on.doc", enabled: true,
+                                 action: { lib.copyCurrentTab() }),
+                    HeaderAction(title: "Finder", icon: "folder", enabled: true,
+                                 action: { lib.showInFinder(rec) })
+                ],
+                onRename: { lib.renaming = rec.id }
+            )
 
             if let error = lib.errors[rec.id] {
                 Label(error, systemImage: "exclamationmark.triangle")
