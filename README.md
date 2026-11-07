@@ -7,7 +7,7 @@
 **Private meeting notes that never leave your Mac.**
 
 Record a meeting, get a transcript with speaker labels, and a summary in the format you need —<br>
-all on-device, with no account, no cloud and no internet connection.
+all on-device, with no account and no cloud, and no internet connection while you use it. (Setup downloads the speech models once, and the first speaker detection downloads its helper libraries; and if you connect an AI agent through the MCP server, what you let it read goes to that agent.)
 
 <img src="assets/badges/platform.svg" alt="macOS 26.4+ on Apple silicon">
 <img src="assets/badges/privacy.svg" alt="100% on-device">
@@ -119,8 +119,8 @@ let go. A second or two later the text appears where your cursor is.
 
 - **Press Return after typing** under **Settings → Dictation → Submit** (off by default) presses Return once the text is typed, so a message sends or a form submits. It does not press Return when there is no text, when the text was left on the clipboard because Earshot can't type yet, or when a secure input field is active.
 - It transcribes on this Mac with the same Whisper model as recordings. The audio is deleted at once. The one exception is a clip that could not be transcribed: it stays in a private temporary file until your next dictation, so **Retry last dictation** in the menu bar can try it again.
-- **It never types into the wrong window.** Earshot remembers which window you started dictating in. If you switch to another window or app before the text is ready, it does not paste there: the text is put on the clipboard and a notice says so, so you can press ⌘V where you want it.
-- **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved.
+- **It does not type into the wrong window.** Earshot remembers which window and which field you started dictating in. If you switch to another window, app, tab or pane before the text is ready, it does not paste there (and it does not press Return there either): the text is put on the clipboard and a notice says so, so you can press ⌘V where you want it. This relies on macOS Accessibility. In an app that does not describe its windows to Accessibility (some Electron apps), Earshot cannot tell and pastes as before. The text stays on the clipboard until you copy something else, and a clipboard-history tool may record it.
+- **Dictation keeps nothing.** What you say is typed into the app in front and that is all: no text and no audio is saved. The exceptions are the ones named above: one failed clip kept in a private temporary file until your next dictation, and the clipboard when Earshot is not allowed to type or you switched windows.
 
 ### Notes: your own voice notes
 
