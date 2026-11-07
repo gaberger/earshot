@@ -18,6 +18,8 @@ final class DictationService: ObservableObject {
     // Injected by the owner, so this class never reaches into the library or UserDefaults itself.
     var isMeetingRecording: () -> Bool = { false }
     var scriptPath: () -> String = { "" }
+    /// Path of the earshot-speak script, used to stop the spoken reply.
+    var speakScriptPath: () -> String = { "" }
     /// Runs the transcribe script with these arguments. `nil` means success, else the error text.
     var runHelper: ([String]) async -> String? = { _ in "No transcriber is set up." }
     var log: (String) -> Void = { _ in }
@@ -142,6 +144,7 @@ final class DictationService: ObservableObject {
     }
 
     private func hotKeyChanged(pressed: Bool) {
+        if pressed { stopSpeech() }
         let now = ProcessInfo.processInfo.systemUptime
         // A changed preference applies at the next dictation, never mid-capture.
         if pressed, session.state == .idle {
@@ -149,6 +152,19 @@ final class DictationService: ObservableObject {
             highlightFrame = DictationPrefs.isHighlightEnabled() ? captureTargetWindow() : nil
         }
         send(pressed ? .keyDown(at: now, meetingRecording: isMeetingRecording()) : .keyUp(at: now))
+    }
+
+    /// Stops the talk-back if it is speaking. Fire and forget: a failure never touches dictation.
+    private func stopSpeech() {
+        let pid = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".earshot/speak.pid")
+        guard let argv = SpeechStop.command(pidFileExists: FileManager.default.fileExists(atPath: pid.path),
+                                            scriptPath: speakScriptPath()) else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: argv[0])
+        process.arguments = Array(argv.dropFirst())
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        if (try? process.run()) != nil { log("Dictation: stopped speech.") }
     }
 
     // MARK: Session

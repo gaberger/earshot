@@ -330,7 +330,7 @@ It is off until you run `on`. `on` binds the voice to the session you run it fro
 {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/ABSOLUTE/PATH/TO/earshot/scripts/earshot-speak"}]}]}}
 ```
 
-Code blocks, tables and URLs are skipped, and long replies are cut to about 280 characters. **Anyone nearby hears replies while it is on.**
+Code blocks, tables and URLs are skipped, and long replies are cut to about 280 characters. **Anyone nearby hears replies while it is on.** Pressing the dictation hotkey also stops the voice, so you can talk over it; this needs the rebuilt app.
 
 ## 🔬 Accuracy notes
 

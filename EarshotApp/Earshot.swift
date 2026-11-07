@@ -255,6 +255,7 @@ final class Library: ObservableObject {
         }
         dictation.isMeetingRecording = { [weak self] in self?.recording ?? false }
         dictation.scriptPath = { [weak self] in self?.bin("transcribe") ?? "" }
+        dictation.speakScriptPath = { [weak self] in self?.bin("earshot-speak") ?? "" }
         dictation.runHelper = { await Library.run($0) }
         dictation.log = { [weak self] in self?.log($0) }
         dictation.tidy = { text in

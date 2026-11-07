@@ -46,6 +46,15 @@ enum DictationSubmit {
     }
 }
 
+/// Whether pressing the dictation hotkey should stop the spoken reply, and the command that does it.
+/// Pure: the caller checks for the pid file and launches the command.
+enum SpeechStop {
+    static func command(pidFileExists: Bool, scriptPath: String) -> [String]? {
+        guard pidFileExists, scriptPath.contains(where: { !$0.isWhitespace }) else { return nil }
+        return ["/usr/bin/python3", scriptPath, "stop"]
+    }
+}
+
 /// Decides what push-to-talk dictation does next, from key events, transcription results and the
 /// clock, and says what the app should do about it.
 ///

@@ -48,3 +48,8 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dict
 # SubmitTests also uses @main and fails itself if fewer than 15 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SubmitTests.swift -o "$out/submit-tests"
 "$out/submit-tests"
+# earshot-speak: the Stop hook that speaks replies (ADR-2611071600); it fails itself if fewer than 56 checks ran.
+python3 -I ../scripts/earshot-speak-test
+# SpeechStopTests also uses @main and fails itself if fewer than 7 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift Tests/SpeechStopTests.swift -o "$out/speech-stop-tests"
+"$out/speech-stop-tests"
