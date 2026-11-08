@@ -42,7 +42,7 @@ python3 -I ../scripts/earshot-mcp-test
 python3 -I ../scripts/earshot-mcp-hardening-test
 # speakers: the transcript rewrite must be atomic (readers see old or new, never partial); fails itself if fewer than 7 checks ran.
 python3 -I ../scripts/speakers-test
-# HighlightTests also uses @main and fails itself if fewer than 28 checks ran.
+# HighlightTests also uses @main and fails itself if fewer than 30 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift WindowHighlight.swift Tests/HighlightTests.swift -o "$out/highlight-tests"
 "$out/highlight-tests"
 # SubmitTests also uses @main and fails itself if fewer than 15 checks ran.
@@ -66,7 +66,7 @@ bash Tests/brand-check.sh
 # DetailNavTests also uses @main and fails itself if fewer than 18 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DetailNav.swift Tests/DetailNavTests.swift -o "$out/detail-nav-tests"
 "$out/detail-nav-tests"
-# SpokenSendTests also uses @main and fails itself if fewer than 28 checks ran.
+# SpokenSendTests also uses @main and fails itself if fewer than 30 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift SpokenSend.swift Tests/SpokenSendTests.swift -o "$out/spoken-send-tests"
 "$out/spoken-send-tests"
 # The spoken send command is parsed from the raw transcript, before tidy-up and the dictionary (ADR-2611080900).
