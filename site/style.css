@@ -195,3 +195,7 @@ pre code { font-size: inherit; overflow-wrap: normal; white-space: pre; }
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .btn:hover { transform: none; }
 }
+
+.dict-mockup { margin: 2.5rem auto 0; max-width: min(800px, 100%); min-width: 0; }
+.dict-mockup img { width: 100%; max-width: 100%; height: auto; border-radius: 14px; box-shadow: var(--shadow); background: #0c0b0a; }
+.dict-mockup figcaption { max-width: 100%; overflow-wrap: anywhere; }

@@ -116,6 +116,12 @@ def local_target(ref):
     return os.path.normpath(os.path.join(SITE, path))
 
 
+
+def png_native_width(path):
+    with open(path, "rb") as f:
+        head = f.read(24)
+    return int.from_bytes(head[16:20], "big") if head[:8] == b"\x89PNG\r\n\x1a\n" else 0
+
 def main():
     if not os.path.exists(INDEX):
         print("FAIL site/index.html does not exist")
@@ -246,6 +252,24 @@ def main():
     check("the whole site is under 3 MB", total < 3 * 1024 * 1024, total)
     check("index.html is under 120 KB", os.path.getsize(INDEX) < 120 * 1024, os.path.getsize(INDEX))
     check("style.css is under 60 KB", len(css.encode()) < 60 * 1024, len(css.encode()))
+
+    # MARK: the dictation mock-up (the fire outline and the pill cannot be photographed, so they are drawn, and say so)
+    figs = re.findall(r"<figure.*?</figure>", html, re.S | re.I)
+    mock = [f for f in figs if "dictation-outline" in f]
+    check("a figure shows the dictation outline mock-up", len(mock) == 1, len(mock))
+    m = mock[0] if mock else ""
+    check("the mock-up figure calls itself a mock-up in the alt text and the caption", len(re.findall(r"mock-up", m, re.I)) >= 2, m[:200])
+    check("the mock-up caption says it is not a screenshot", "not a screenshot" in m.lower())
+    check("the mock-up sits in the Dictation section", "mock-up" in " ".join(p.sec_text["dictation"]).lower())
+    check("the page no longer says the outline and pill are missing from the pictures",
+          "so they are not in the screenshots on this page" not in html)
+    mm = re.search(r'src="(img/dictation-outline[^"]+)"[^>]*width="(\d+)"', m)
+    if mm:
+        pw = local_target(mm.group(1))
+        native = png_native_width(pw) if pw and os.path.exists(pw) else 0
+        check("the mock-up is a 2x image: at least twice its displayed width", native >= 2 * int(mm.group(2)), (native, mm.group(2)))
+    else:
+        check("the mock-up is a 2x image: at least twice its displayed width", False, "no img with a width attribute")
 
     print("%d checks, %d failed" % (checks, failures))
     if checks < FLOOR:
