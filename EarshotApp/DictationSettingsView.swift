@@ -93,6 +93,7 @@ struct DictationSettingsView: View {
     @AppStorage(DictationPrefs.cleanup) private var cleanup = false
     @AppStorage(DictationPrefs.highlight) private var highlight = true
     @AppStorage(DictationPrefs.sendReturn) private var sendReturn = false
+    @AppStorage(DictationPrefs.spokenSend) private var spokenSend = false
     @State private var hotKey = HotKey.load()
     @State private var hotKeyNotice: String?
     @State private var trusted = AXIsProcessTrusted()
@@ -187,6 +188,12 @@ struct DictationSettingsView: View {
                     SettingsRow("Press Return after typing",
                                 detail: "Presses Return once the text is typed, so a message sends or a form submits. Off by default. Turn it on only if you want that.") {
                         Toggle("", isOn: $sendReturn)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                    SettingsRow("Say \"exclamation point\" to send Control-Return",
+                                detail: "End a dictation with the words exclamation point and Earshot types the rest, then presses Control-Return, which wakes Claude Code. Off by default. While it is on, those words at the end are not typed.") {
+                        Toggle("", isOn: $spokenSend)
                             .labelsHidden()
                             .toggleStyle(.switch)
                     }

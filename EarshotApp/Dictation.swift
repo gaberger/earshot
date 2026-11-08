@@ -36,6 +36,15 @@ enum DictationPrefs {
               CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
         return number.boolValue
     }
+
+    static let spokenSend = "dictationSpokenSend"
+
+    /// Off by default. Any stored value that is not a Bool reads as off.
+    static func isSpokenSendEnabled(_ d: UserDefaults = .standard) -> Bool {
+        guard let number = d.object(forKey: spokenSend) as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
+    }
 }
 
 /// Whether to press Return after the dictated text was typed. Fails toward "do nothing".

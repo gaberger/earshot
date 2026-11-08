@@ -13,7 +13,7 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FLOOR = 163
+FLOOR = 164
 checks = 0
 failures = 0
 DOCS = ["INSTALL", "GUIDE", "PRIVACY", "AGENTS", "DEVELOPMENT"]
@@ -154,7 +154,7 @@ for cmd in ["brew install whisper-cpp ffmpeg uv", "ggml-large-v3-turbo.bin", "gg
             "Check that it works", "~/Models/whisper"]:
     check("INSTALL keeps: %s" % cmd, cmd in I)
 for phrase in ["Tap to start, tap to stop", "Fix words it mishears", "Tidy up what I say", "Highlight the window", "Press Return after typing",
-               "Dictation", "Notes", "Summary templates", "Shortcuts", "Accuracy", "Command line", "```mermaid", "sidebar", "sample data"]:
+               "Dictation", "Notes", "exclamation point", "Summary templates", "Shortcuts", "Accuracy", "Command line", "```mermaid", "sidebar", "sample data"]:
     check("GUIDE keeps: %s" % phrase, phrase in G or (phrase == "sample data" and "sample data" in rl))
 check("GUIDE documents search with Command K", re.search(r"<kbd>⌘</kbd>\s*<kbd>K</kbd>|⌘K", G) is not None)
 check("GUIDE documents going back from an open recording", "Esc" in G and "⌘</kbd> <kbd>[" in G)
