@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earshot - private meeting notes and dictation for Mac</title>
+<meta name="description" content="Earshot records meetings on your Mac, transcribes them, labels who spoke and writes a summary. Everything runs on-device.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#top">Earshot</a>
+    <nav aria-label="Primary">
+      <ul>
+        <li><a href="#what">What it is</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#dictation">Dictation</a></li>
+        <li><a href="#notes">Notes</a></li>
+        <li><a href="#privacy">Privacy</a></li>
+        <li><a href="#install">Install</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top" aria-labelledby="h1">
+    <div class="wrap">
+      <p class="kicker">Earshot for Mac</p>
+      <h1 id="h1">Meeting notes and dictation that stay on your Mac</h1>
+      <p class="lede">Earshot records a meeting, writes the transcript, labels who spoke and drafts the summary, all with models running on this Mac. Hold a shortcut in any app and it types what you say.</p>
+      <p class="cta">
+        <a class="btn btn-primary" href="https://github.com/gaberger/earshot/releases/latest">Download for Mac</a>
+        <a class="btn btn-ghost" href="https://github.com/gaberger/earshot">View on GitHub</a>
+      </p>
+      <p class="req">Requires a Mac with Apple silicon and macOS 26.4 or later.</p>
+      <figure class="shot hero-shot">
+        <img src="img/recordings-home.png" width="760" height="640" alt="Earshot's recordings list in a dark window: meetings grouped by day with durations and transcribed or summarized status, and a red Record button with an Import button at the bottom.">
+        <figcaption>The Recordings home screen lists recordings by day with their length and status, with Import and Record buttons at the bottom. One entry spins while it transcribes and one shows an error in orange.
+          <span class="sample">All screenshots show sample data and are renders of the real app views, not captures of anyone's recordings.</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="what" aria-labelledby="what-h">
+    <div class="wrap">
+      <p class="secno" aria-hidden="true">01</p>
+      <h2 id="what-h">What it is</h2>
+      <h3 class="sub">Three separate functions in one app</h3>
+      <div class="three">
+        <article class="fn">
+          <h4>Recordings</h4>
+          <p>Record a meeting or call, or drop in an audio or video file. You get a transcript with speaker labels and a summary.</p>
+        </article>
+        <article class="fn">
+          <h4>Notes</h4>
+          <p>Your own voice notes. Speak, press Stop, and the text is saved in a list. Nothing is typed into other apps.</p>
+        </article>
+        <article class="fn">
+          <h4>Dictation</h4>
+          <p>Hold a shortcut in any app, speak, let go, and Earshot types what you said where your cursor is. It is off until you turn it on in Settings.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <p class="secno" aria-hidden="true">02</p>
+      <h2 id="how-h">How it works</h2>
+      <h3 class="sub">From a recording to a summary</h3>
+      <ol class="steps">
+        <li><strong>Record or import.</strong> Record from the microphone you choose. Or drag in an audio or video file. A recording stops by itself after a quiet spell, and warns you first.</li>
+        <li><strong>Transcribe on this Mac.</strong> Whisper large-v3-turbo runs on the Mac's GPU. The transcript is editable. It is made after you stop recording, not while you speak.</li>
+        <li><strong>See who spoke when.</strong> A voice model labels the speakers. Click a speaker to rename them everywhere.</li>
+        <li><strong>Get a summary.</strong> Apple's on-device model writes a summary from one of nine templates, such as meeting minutes or sales call. Every summary ends with action items as checkboxes. You can edit it.</li>
+      </ol>
+      <p class="aside">Summaries come from a small model. Check names and numbers before you share one.</p>
+
+      <div class="gallery">
+        <figure class="shot">
+          <img loading="lazy" src="img/recording-live.png" width="760" height="520" alt="Earshot recording a meeting: a timer reading 12:34, a red audio waveform, the MacBook Pro Microphone as input, and a Stop button.">
+          <figcaption>A recording in progress: a red Recording label, a running timer, a live level display, the microphone in use, and a Stop button. The text appears when you stop.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img loading="lazy" src="img/recording-auto-stop.png" width="760" height="520" alt="Earshot warning that no one has spoken for a while and that the recording will stop in 24 seconds, with a Keep recording button.">
+          <figcaption>A long recording with a flat waveform and an orange banner saying no one has spoken for a while and that the recording stops in 24 seconds, with a Keep recording button.</figcaption>
+        </figure>
+        <figure class="shot wide">
+          <img loading="lazy" src="img/recording-detail-header.png" width="760" height="156" alt="The top of a finished recording in Earshot: its title, 42 minute length, Transcribed and Summarized badges, Summarize, Copy and Finder buttons, and Summary and Transcript tabs.">
+          <figcaption>The top of one recording: its name, date and length, Transcribed and Summarized badges, Summarize, Copy and Finder buttons, and Summary and Transcript tabs.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-ink" id="dictation" aria-labelledby="dict-h">
+    <div class="wrap dict">
+      <div class="dict-text">
+        <p class="secno" aria-hidden="true">03</p>
+        <h2 id="dict-h">Dictation</h2>
+        <h3 class="sub">Speak in any app. Earshot types it.</h3>
+        <p class="big">Click into any text field, hold the shortcut (Control, Option, Space unless you change it), speak, and let go. A second or two later the text appears where your cursor is.</p>
+        <ul class="feat">
+          <li><strong>Hold or tap.</strong> By default you hold the keys while you talk. Or switch to tap to start, tap to stop.</li>
+          <li><strong>Your shortcut.</strong> Change it in Settings; it must include Control or Option, or be a function key.</li>
+          <li><strong>Fix words it mishears.</strong> Add corrections such as "ear shot" becoming "Earshot". They match whole words and ignore case.</li>
+          <li><strong>Tidy up, if you want it.</strong> Off by default. It removes ums and stutters and fixes punctuation using Apple's on-device model. It may reword slightly. If the model is unavailable, slow or drifts from what you said, your words are typed as spoken.</li>
+          <li><strong>See where it will land.</strong> While you dictate, a small fire burns around the edge of the window the words will be typed into. Earshot reads only the window's position and size. With Reduce Motion on, you get a plain static border. You can turn it off in Settings.</li>
+          <li><strong>A pill shows what it is doing.</strong> A small indicator near the bottom of the screen says Listening with a live level bar, then Transcribing, or Tidying when cleanup is on.</li>
+          <li><strong>Press Return after typing.</strong> Off by default. When on, Earshot presses Return once the text is typed, so a message sends or a form submits. Sending cannot be undone, so you must switch it on yourself. It never presses Return when nothing was typed or in a secure input field.</li>
+        </ul>
+        <p>Dictation keeps nothing: no text and no audio is saved. The audio is deleted at once, except a clip that could not be transcribed, which waits in a private temporary file so you can retry it. Earshot will not type into password fields.</p>
+        <p class="aside">The fire outline and the pill appear only while you dictate, so they are not in the screenshots on this page.</p>
+      </div>
+      <figure class="shot dict-shot">
+        <img loading="lazy" src="img/dictation-settings.png" width="680" height="761" alt="Earshot's dictation settings: a shortcut with Hold and Tap modes, toggles for window highlight, tidying up speech and pressing Return, and a list of word corrections.">
+        <figcaption>Part of the Dictation settings, from the Shortcut group down: the shortcut with Hold and Tap modes, the window highlight, the Tidy up and Press Return options, and a corrections list, with a note that nothing is typed into password fields.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="band" id="notes" aria-labelledby="notes-h">
+    <div class="wrap">
+      <p class="secno" aria-hidden="true">04</p>
+      <h2 id="notes-h">Notes</h2>
+      <h3 class="sub">Voice notes, text only</h3>
+      <div class="notes-grid">
+        <div class="notes-text">
+          <p class="big">Notes is its own area, separate from Recordings. Press Record a note, speak, and press Stop. It is transcribed on this Mac and saved in a list grouped by day, with Copy and Delete on each note.</p>
+          <p class="pull">Only the text is kept. The audio is deleted at once.</p>
+        </div>
+        <figure class="shot">
+          <img loading="lazy" src="img/notes-list.png" width="760" height="640" alt="Earshot's Notes page listing short voice notes as text with their times and lengths, each with copy and delete buttons.">
+          <figcaption>The Notes list: short voice notes grouped by day, each with its length, a Copy button and a Delete button, plus Record a note and Clear all.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img loading="lazy" src="img/notes-recording.png" width="760" height="520" alt="Earshot recording a voice note: a red waveform with a 0:37 timer and a Stop button above a saved note.">
+          <figcaption>Recording a note: a Recording label, timer and level display with a Stop button above the saved notes.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="privacy" aria-labelledby="priv-h">
+    <div class="wrap">
+      <p class="secno" aria-hidden="true">05</p>
+      <h2 id="priv-h">Privacy</h2>
+      <div class="panels">
+        <div class="panel panel-in">
+          <h3>What stays on this Mac</h3>
+          <p>Every model Earshot uses runs locally: Whisper for speech, a voice model for speakers, and Apple's on-device model for summaries and for the optional tidy-up. There is no account and no cloud. Turn off Wi-Fi and it all still works once the models and speaker packages are downloaded. Earshot never uses Apple's Private Cloud Compute. Nothing leaves this Mac because of Earshot.</p>
+          <figure class="shot status-shot">
+            <img loading="lazy" src="img/sidebar-status.png" width="260" height="164" alt="Two Earshot status cards: Ready on this Mac with the Whisper model and microphone named, and a Recording card with a 12:41 timer.">
+            <figcaption>The status panel at the bottom of the sidebar. It reads Ready, on this Mac with the speech model and microphone name, or shows Recording with a timer.</figcaption>
+          </figure>
+        </div>
+        <div class="panel panel-out">
+          <h3>Where Earshot's promise stops</h3>
+          <p>Two optional features involve an AI agent, and the agent is outside that promise.</p>
+          <ul>
+            <li><strong>The MCP server.</strong> <code>scripts/earshot-mcp</code> is a small stdio server that lets an agent read your recordings. It starts no daemon, opens no port and uses no network. It exposes four read-only tools: <code>list_recordings</code>, <code>get_transcript</code>, <code>get_summary</code> and <code>search</code>. The agent you connect it to receives that text, and may send it to its own provider.</li>
+            <li><strong>Spoken replies with Claude Code.</strong> <code>scripts/earshot-speak</code> is a Stop hook that reads Claude's reply aloud using the macOS say command, locally. It is off until you turn it on. Claude Code itself is an agent with its own provider, which is outside Earshot's promise. Anyone nearby can hear the replies.</li>
+          </ul>
+          <p class="choice">Connecting an agent is your choice.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="install" aria-labelledby="inst-h">
+    <div class="wrap narrow">
+      <p class="secno" aria-hidden="true">06</p>
+      <h2 id="inst-h">Install</h2>
+      <h3 class="sub">Install Earshot</h3>
+      <p class="need"><strong>You need:</strong> a Mac with Apple silicon (M1 or later), macOS 26.4 or later, Apple Intelligence turned on (for summaries), Homebrew, and about 3 GB of free disk space for the models.</p>
+      <ol class="inst">
+        <li>
+          <h4>Install the tools</h4>
+          <pre><code>brew install whisper-cpp ffmpeg uv</code></pre>
+        </li>
+        <li>
+          <h4>Download the models.</h4>
+          <pre><code># Speech to text
+mkdir -p ~/Models/whisper &amp;&amp; cd ~/Models/whisper
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin   # 1.6 GB, required
+curl -LO https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin      # 1 MB, skips silence
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin     # 1.1 GB, only for Translate
+
+# Speaker labels
+mkdir -p ~/Models/speakers &amp;&amp; cd ~/Models/speakers
+curl -L https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2 | tar xj
+curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx</code></pre>
+        </li>
+        <li>
+          <h4>Install the app. Choose one.</h4>
+          <ul>
+            <li><strong>Disk image.</strong> Download the .dmg from the <a href="https://github.com/gaberger/earshot/releases">latest release on GitHub</a>, open it, drag Earshot onto Applications, then eject it.</li>
+            <li><strong>Build from source.</strong> Needs Xcode. Run <code>git clone https://github.com/gaberger/earshot.git</code>, then <code>cd earshot</code>, then <code>bash EarshotApp/build.sh</code>. It installs Earshot.app in ~/Applications.</li>
+          </ul>
+        </li>
+        <li>
+          <h4>Open it the first time.</h4>
+          <p>Earshot is not notarized by Apple, so macOS says it cannot check the disk image app. Click Done, open System Settings, then Privacy &amp; Security, scroll down and click Open Anyway. An app you built yourself opens normally.</p>
+        </li>
+      </ol>
+      <div class="note">
+        <h4>First speaker detection needs a download</h4>
+        <p>The first speaker detection downloads about 30 MB of Python packages (sherpa-onnx) into uv's cache. You can do it now while online:</p>
+        <pre><code>uv run --quiet --script /Applications/Earshot.app/Contents/Resources/speakers --help</code></pre>
+        <p>Use <code>~/Applications/Earshot.app</code> if you built from source. After that nothing needs the internet.</p>
+      </div>
+      <h3 class="sub small">Permissions</h3>
+      <p>The first time you record, macOS asks for the microphone; click Allow. Dictation also asks for Accessibility, which is what lets Earshot type for you. After an update, macOS may forget the Accessibility permission; switch Earshot off and on again in the Accessibility list.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p class="foot-brand">Earshot</p>
+    <p>Earshot is open source under the MIT License.</p>
+    <ul>
+      <li><a href="https://github.com/gaberger/earshot">GitHub</a></li>
+      <li><a href="https://github.com/gaberger/earshot/releases">Releases</a></li>
+      <li><a href="https://github.com/gaberger/earshot#readme">README</a></li>
+      <li><a href="https://modelcontextprotocol.io">MCP</a></li>
+    </ul>
+  </div>
+</footer>
+</body>
+</html>
