@@ -406,8 +406,19 @@ final class DictationService: ObservableObject {
                 keptClip = nil
                 retryAvailable = false
             }
-            var cleaned = text
-            if let original = text, DictationPrefs.isCleanupEnabled() {
+            pendingControlReturn = false
+            // The spoken command is taken off the RAW transcript, before tidy-up can rewrite its words.
+            var remainder = text
+            if let raw = text {
+                let spoken = SpokenSend.apply(enabled: DictationPrefs.isSpokenSendEnabled(), to: raw)
+                if spoken.send, spoken.text.isEmpty {
+                    return pressControlReturnOnly()
+                }
+                remainder = spoken.text
+                pendingControlReturn = spoken.send
+            }
+            var cleaned = remainder
+            if let original = remainder, DictationPrefs.isCleanupEnabled() {
                 let tidy = self.tidy
                 tidying = true
                 refreshHUD()
@@ -423,16 +434,7 @@ final class DictationService: ObservableObject {
                 cleaned = DictationCleanup.choose(original: original, cleaned: answer)
                 if answer == nil { log("Dictation: cleanup skipped.") }
             }
-            var corrected = cleaned.map { DictationDictionary.load().apply($0) }
-            pendingControlReturn = false
-            if let heard = corrected {
-                let spoken = SpokenSend.apply(enabled: DictationPrefs.isSpokenSendEnabled(), to: heard)
-                if spoken.send, spoken.text.isEmpty {
-                    return pressControlReturnOnly()
-                }
-                corrected = spoken.text
-                pendingControlReturn = spoken.send
-            }
+            let corrected = cleaned.map { DictationDictionary.load().apply($0) }
             send(.transcript(corrected, secureInput: IsSecureEventInputEnabled()))
         }
     }

@@ -69,3 +69,5 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Deta
 # SpokenSendTests also uses @main and fails itself if fewer than 28 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift SpokenSend.swift Tests/SpokenSendTests.swift -o "$out/spoken-send-tests"
 "$out/spoken-send-tests"
+# The spoken send command is parsed from the raw transcript, before tidy-up and the dictionary (ADR-2611080900).
+bash Tests/order-check.sh
