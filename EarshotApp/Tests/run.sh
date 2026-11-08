@@ -66,3 +66,6 @@ bash Tests/brand-check.sh
 # DetailNavTests also uses @main and fails itself if fewer than 18 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library DetailNav.swift Tests/DetailNavTests.swift -o "$out/detail-nav-tests"
 "$out/detail-nav-tests"
+# SpokenSendTests also uses @main and fails itself if fewer than 28 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Dictation.swift SpokenSend.swift Tests/SpokenSendTests.swift -o "$out/spoken-send-tests"
+"$out/spoken-send-tests"

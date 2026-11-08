@@ -51,6 +51,10 @@ final class DictationService: ObservableObject {
     let highlighter = WindowHighlighter()
     /// True while the cleanup (tidy) stage runs, so the indicator can name it.
     private(set) var tidying = false
+    /// True when the transcript being typed ended with the spoken send command (ADR-2611080900).
+    private var pendingControlReturn = false
+    /// True while a deliberate quiet `.failed` is sent, so its "Dictation failed." notice is dropped.
+    private var quietFailure = false
 
     /// Asks for the two permissions dictation needs: the microphone, and Accessibility (to type).
     static func requestPermissions() {
@@ -294,7 +298,9 @@ final class DictationService: ObservableObject {
         case .discardCapture: discardCapture()
         case .insert(let text):
             paste(text)
-        case .notice(let message): notify(message)
+        case .notice(let message):
+            if quietFailure { return }
+            notify(message)
         }
     }
 
@@ -417,9 +423,52 @@ final class DictationService: ObservableObject {
                 cleaned = DictationCleanup.choose(original: original, cleaned: answer)
                 if answer == nil { log("Dictation: cleanup skipped.") }
             }
-            let corrected = cleaned.map { DictationDictionary.load().apply($0) }
+            var corrected = cleaned.map { DictationDictionary.load().apply($0) }
+            pendingControlReturn = false
+            if let heard = corrected {
+                let spoken = SpokenSend.apply(enabled: DictationPrefs.isSpokenSendEnabled(), to: heard)
+                if spoken.send, spoken.text.isEmpty {
+                    return pressControlReturnOnly()
+                }
+                corrected = spoken.text
+                pendingControlReturn = spoken.send
+            }
             send(.transcript(corrected, secureInput: IsSecureEventInputEnabled()))
         }
+    }
+
+    /// Posts Control-Return (not plain Return). Logs only that the key was pressed.
+    private func postControlReturn(source: CGEventSource?) {
+        for down in [true, false] {
+            let key = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(SpokenSend.returnKeyCode), keyDown: down)
+            key?.flags = .maskControl
+            key?.post(tap: .cgAnnotatedSessionEventTap)
+        }
+        log("Dictation: pressed Control-Return.")
+    }
+
+    /// The whole dictation was the spoken command: type nothing, press Control-Return if it is safe.
+    private func pressControlReturnOnly() {
+        let trusted = AXIsProcessTrusted()
+        let secure = IsSecureEventInputEnabled()
+        let current = currentSnapshot()
+        let sameWindow = Self.pasteDecision(target: pasteTarget, current: current) != .hold
+        var problem: String?
+        if !trusted {
+            problem = "Accessibility is not allowed"
+        } else if secure {
+            problem = "a secure input field is active"
+        } else if !sameWindow {
+            problem = "you switched windows"
+        }
+        quietFailure = true
+        send(.failed)
+        quietFailure = false
+        if let problem {
+            notify("Control-Return was not sent: \(problem).")
+            return
+        }
+        postControlReturn(source: CGEventSource(stateID: .combinedSessionState))
     }
 
     /// Retries the clip kept from the last failed transcription, once.
@@ -508,7 +557,19 @@ final class DictationService: ObservableObject {
             key?.post(tap: .cgAnnotatedSessionEventTap)
         }
 
-        if DictationSubmit.shouldSendReturn(enabled: DictationPrefs.isSendReturnEnabled(), text: text,
+        let controlReturn = pendingControlReturn
+        pendingControlReturn = false
+        if controlReturn, !IsSecureEventInputEnabled() {
+            let guardTarget = pasteTarget
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                if Self.pasteDecision(target: guardTarget, current: currentSnapshot()) == .hold {
+                    log("Dictation: Control-Return not sent, the window changed")
+                    return
+                }
+                postControlReturn(source: source)
+            }
+        } else if !controlReturn, DictationSubmit.shouldSendReturn(enabled: DictationPrefs.isSendReturnEnabled(), text: text,
                                             pasted: true, secureInput: IsSecureEventInputEnabled()) {
             let guardTarget = pasteTarget
             Task { @MainActor in
