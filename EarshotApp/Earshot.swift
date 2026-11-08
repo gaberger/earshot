@@ -1640,10 +1640,10 @@ struct HelpView: View {
                     item("Press Return after typing", "Off by default. Presses Return once after the text is typed, "
                          + "so a chat message sends or a form submits. It does nothing for empty text, or when the "
                          + "text could only be left on the clipboard.")
-                    item("Say exclamation point to send", "With Say exclamation point to send switched on in "
-                         + "Settings, end a dictation with the words exclamation point and Earshot types the rest "
+                    item("Say bang to send", "With Say bang to send switched on in "
+                         + "Settings, end a dictation with the word bang and Earshot types the rest "
                          + "and presses Control-Return, so you can wake Claude Code without touching the keyboard. "
-                         + "Saying only those words just presses Control-Return.")
+                         + "Saying only that word just presses Control-Return.")
                     para("Dictation keeps nothing: no text and no audio is saved, except a clip that could not be "
                          + "transcribed, which is kept until your next dictation so Retry last dictation in the menu "
                          + "bar can try again. It never types into password fields, and it is off while a meeting is "

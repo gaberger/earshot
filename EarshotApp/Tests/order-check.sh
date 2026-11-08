@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guards the order of the dictation pipeline (ADR-2611080900): the spoken command must be taken off the RAW
 # transcript before the tidy-up pass and the dictionary run. Tidy up is told to fix punctuation, so it could turn
-# the spoken words "exclamation point" into a "!" and the command would silently never fire.
+# the spoken word "bang" into a "!" and the command would silently never fire.
 # It is a blunt source check (line order), and it fails itself if it cannot find the three steps.
 set -euo pipefail
 cd "$(dirname "$0")/.."

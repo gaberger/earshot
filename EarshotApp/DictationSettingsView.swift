@@ -191,8 +191,8 @@ struct DictationSettingsView: View {
                             .labelsHidden()
                             .toggleStyle(.switch)
                     }
-                    SettingsRow("Say \"exclamation point\" to send Control-Return",
-                                detail: "End a dictation with the words exclamation point and Earshot types the rest, then presses Control-Return, which wakes Claude Code. Off by default. While it is on, those words at the end are not typed.") {
+                    SettingsRow("Say \"bang\" to send Control-Return",
+                                detail: "End a dictation with the word bang and Earshot types the rest, then presses Control-Return, which wakes Claude Code. Off by default. While it is on, that word at the end is not typed.") {
                         Toggle("", isOn: $spokenSend)
                             .labelsHidden()
                             .toggleStyle(.switch)

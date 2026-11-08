@@ -19,7 +19,7 @@ phrases=(
   "Tap to start, tap to stop"
   "Fix words it mishears"
   "Back to Recordings"
-  "exclamation point"
+  "Say bang to send"
   "Tidy up what I say"
   "Highlight the window"
   "Press Return after typing"

@@ -1,7 +1,7 @@
 import Foundation
 
-/// A spoken command at the end of a dictation (ADR-2611080900): the words "exclamation point" or
-/// "exclamation mark" mean "press Control-Return". Pure logic, no UI.
+/// A spoken command at the end of a dictation (ADR-2611080900): the word "bang"
+/// means "press Control-Return". Pure logic, no UI.
 enum SpokenSend {
     struct Result: Equatable {
         let text: String
@@ -14,7 +14,7 @@ enum SpokenSend {
     static let controlFlagRaw: UInt64 = 0x40000
 
     private static let pattern = try? NSRegularExpression(
-        pattern: #"(?<![\p{L}\p{N}_])exclamation[\s-]+(?:point|mark)(?![\p{L}\p{N}_])[\s\p{P}]*$"#,
+        pattern: #"(?<![\p{L}\p{N}_])bang(?![\p{L}\p{N}_])[\s\p{P}]*$"#,
         options: [.caseInsensitive])
 
     private static let danglers: Set<Character> = [",", ";", ":", "-", "\u{2013}", "\u{2014}"]
