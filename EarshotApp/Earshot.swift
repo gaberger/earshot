@@ -395,8 +395,8 @@ final class Library: ObservableObject {
         let url = dir.appendingPathComponent(Recording.stampFormat.string(from: Date()) + ".wav")
         let chosen = UserDefaults.standard.string(forKey: MicRecorder.settingKey) ?? ""
         do {
-            let r = try MicRecorder(deviceID: chosen, url: url) { rec, error in
-                Task { @MainActor in self.recordingFinished(rec, error: error) }
+            let r = try MicRecorder(deviceID: chosen, url: url) { rec, end in
+                Task { @MainActor in self.recordingFinished(rec, end: end) }
             }
             recorder = r
             r.start()
@@ -415,15 +415,19 @@ final class Library: ObservableObject {
     private func stopRecording() {
         guard let r = recorder else {
             log("stop pressed but no recorder")
-            recording = false
+            clearRecordingState()
             return
         }
         // The file is finished in recordingFinished, once the capture output has flushed it.
         r.stop()
+        clearRecordingState()
+        log("recording stopped")
+    }
+
+    private func clearRecordingState() {
         stopWatchingForEnd()
         recording = false
         startedAt = nil
-        log("recording stopped")
     }
 
     // MARK: End-of-meeting detection
@@ -507,13 +511,19 @@ final class Library: ObservableObject {
         if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
     }
 
-    private func recordingFinished(_ r: MicRecorder, error: Error?) {
-        stopWatchingForEnd()
+    private func recordingFinished(_ r: MicRecorder, end: RecordingEnd) {
+        clearRecordingState()
         recorder = nil
         micName = nil
-        if let error {
-            log("recording finished with error: \(error)")
-            notice = "The recording may be incomplete: \(error.localizedDescription)"
+        switch end {
+        case .stopped:
+            break
+        case .failed(let m):
+            log("recording finished with error: \(m)")
+            notice = m
+        case .endedByItself(let m):
+            log("recording ended by itself: \(m)")
+            notice = m
         }
         guard FileManager.default.fileExists(atPath: r.url.path) else { return }
         reload()
@@ -976,14 +986,30 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
     private let session = AVCaptureSession()
     private let output = AVCaptureAudioFileOutput()
     private let queue = DispatchQueue(label: "Earshot.mic")
-    private let finished: (MicRecorder, Error?) -> Void
+    private let finished: (MicRecorder, Bool, NSError?) -> Void  // stopRequested, raw error
+    private var stopRequested = false
 
     static func inputs() -> [AVCaptureDevice] {
         AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone, .external],
                                          mediaType: .audio, position: .unspecified).devices
     }
 
-    init(deviceID: String, url: URL, finished: @escaping (MicRecorder, Error?) -> Void) throws {
+    convenience init(deviceID: String, url: URL, finished: @escaping (MicRecorder, RecordingEnd) -> Void) throws {
+        try self.init(deviceID: deviceID, url: url, raw: { rec, stopRequested, error in
+            finished(rec, RecordingEnd.classify(stopRequested: stopRequested, error: error))
+        })
+    }
+
+    /// Dictation and notes keep the older contract: nil unless the capture failed.
+    convenience init(deviceID: String, url: URL, finished: @escaping (MicRecorder, Error?) -> Void) throws {
+        try self.init(deviceID: deviceID, url: url, raw: { rec, _, error in
+            // Capture outputs report some normal stops as errors, flagged as "finished successfully".
+            let ok = error?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
+            finished(rec, ok ? nil : error)
+        })
+    }
+
+    private init(deviceID: String, url: URL, raw finished: @escaping (MicRecorder, Bool, NSError?) -> Void) throws {
         let chosen = deviceID.isEmpty ? nil : AVCaptureDevice(uniqueID: deviceID)
         guard let device = chosen ?? AVCaptureDevice.default(for: .audio) else {
             throw AppError(message: "No microphone is connected.")
@@ -1022,7 +1048,10 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
     }
 
     func stop() {
-        queue.async { [self] in output.stopRecording() }
+        queue.async { [self] in
+            stopRequested = true
+            output.stopRecording()
+        }
     }
 
     var level: Float {
@@ -1032,9 +1061,7 @@ final class MicRecorder: NSObject, AVCaptureFileOutputRecordingDelegate, @unchec
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo url: URL,
                     from connections: [AVCaptureConnection], error: Error?) {
         session.stopRunning()
-        // Capture outputs report some normal stops as errors, flagged as "finished successfully".
-        let ok = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
-        finished(self, ok ? nil : error)
+        finished(self, stopRequested, error as NSError?)
     }
 }
 
