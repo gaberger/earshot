@@ -1,5 +1,56 @@
 {
   "sessions": {
+    "10bfdb96-8c1b-46ac-ad63-2e3bcba7d177": {
+      "adr": "ADR-2611101015",
+      "files": [
+        "docs/adrs/ADR-2611101015-capture-that-ends-by-itself.md",
+        "EarshotApp/Tests/RecordingEndTests.swift",
+        "/Users/gary/.claude-profiles/claude-bedrock-gary/config/projects/-Volumes-Crucial-projects-earshot/memory/always-use-hexa.md"
+      ],
+      "gate": "cd EarshotApp && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 *.swift",
+      "gate_uncounted": true,
+      "pid": 87299,
+      "pid_start": 96743574427933720,
+      "stage": "done",
+      "updated": "2026-11-10T15:38:34.851450+00:00"
+    },
+    "163b83d0-986a-42b0-bbc9-ba83d037f753": {
+      "adr": "ADR-2611130933",
+      "files": [
+        "docs/adrs/ADR-2611130933-call-offer-panel.md",
+        "EarshotApp/Tests/CallOfferPanelTests.swift",
+        "/Users/gary/.claude-profiles/claude-bedrock-gary/config/projects/-Volumes-Crucial-projects-earshot/memory/adhoc-build-no-notifications.md",
+        "docs/releases/1.2.1.md"
+      ],
+      "gate": "cd EarshotApp && bash Tests/run.sh",
+      "gate_uncounted": false,
+      "last_run": {
+        "at": "2026-11-13T14:41:28.256046+00:00",
+        "gate": "cd EarshotApp && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 *.swift",
+        "stage": "build"
+      },
+      "pid": 97834,
+      "pid_start": 5419724415653003909,
+      "stage": "build",
+      "tasks": [
+        {
+          "done_at": "2026-11-13T14:41:28.211887+00:00",
+          "status": "done",
+          "title": "CallOfferPanelRule: wording and dismissal rule in CallStart.swift"
+        },
+        {
+          "done_at": "2026-11-13T14:45:07.713898+00:00",
+          "status": "done",
+          "title": "Floating offer panel, wired into offerTick, errors logged"
+        },
+        {
+          "done_at": "2026-11-13T15:30:17.518049+00:00",
+          "status": "done",
+          "title": "Help, README, build and relaunch"
+        }
+      ],
+      "updated": "2026-11-13T15:30:17.528498+00:00"
+    },
     "45399de1-9c80-4f19-80d1-23e9d7adbd1c": {
       "adr": "ADR-2611061830",
       "files": [
@@ -117,7 +168,7 @@
       "updated": "2026-11-06T23:09:40.703611+00:00"
     },
     "af3b401a-8528-4ed1-9708-c8d9eb9f55ce": {
-      "adr": "ADR-2611062130",
+      "adr": "ADR-2611071900",
       "files": [
         "docs/adrs/ADR-2611062045-dictation-dictionary-and-tap-to-toggle.md",
         "EarshotApp/Tests/DictionaryTests.swift",
@@ -126,10 +177,10 @@
         "EarshotApp/Tests/RenderUI.swift",
         "docs/adrs/ADR-2611062130-restyle-the-whole-app.md"
       ],
-      "gate": "bash EarshotApp/Tests/render.sh && bash EarshotApp/Tests/run.sh >/dev/null",
+      "gate": "bash scripts/agents-check",
       "last_run": {
-        "at": "2026-11-07T03:28:15.537868+00:00",
-        "gate": "cd EarshotApp && bash Tests/render.sh >/dev/null && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 Earshot.swift RichText.swift Chunking.swift EndOfMeeting.swift CallStart.swift Dictation.swift DictationDictionary.swift DictationLog.swift NotesStore.swift NoteSession.swift NoteRecorder.swift DictationService.swift HotKey.swift DictationHUD.swift SettingsKit.swift HomeView.swift NotesView.swift RecordingViews.swift AppNav.swift ChromeViews.swift SearchIndex.swift DictationSettingsView.swift",
+        "at": "2026-11-07T22:09:18.897192+00:00",
+        "gate": "cd EarshotApp && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 *.swift",
         "stage": "build"
       },
       "pid": 39595,
@@ -142,21 +193,9 @@
           "title": "Kit: cards, rows, banners, chips (done)"
         },
         {
-          "status": "doing",
-          "title": "Settings pages in a sidebar"
-        },
-        {
           "done_at": "2026-11-07T02:20:08.067395+00:00",
           "status": "done",
           "title": "Home: greeting, cards, filter pills, day-grouped feed"
-        },
-        {
-          "status": "todo",
-          "title": "Shell: sidebar brand + status card, slim toolbar, floating Record bar"
-        },
-        {
-          "status": "todo",
-          "title": "Menu bar panel and Listening pill"
         },
         {
           "done_at": "2026-11-07T02:48:46.254390+00:00",
@@ -167,10 +206,6 @@
           "done_at": "2026-11-07T02:48:46.264359+00:00",
           "status": "done",
           "title": "Recording screen and recording header (done, e53d492)"
-        },
-        {
-          "status": "todo",
-          "title": "Notes box while recording, used by the summary"
         },
         {
           "done_at": "2026-11-07T02:58:29.359856+00:00",
@@ -198,12 +233,13 @@
           "title": "Notes log: sidebar area, search, README"
         },
         {
-          "done_at": "2026-11-07T03:32:18.251232+00:00",
+          "done_at": "2026-11-07T22:12:08.918313+00:00",
           "status": "done",
           "title": "Notes in the ⌘K search (SearchIndex note hits, tests first)"
         },
         {
-          "status": "todo",
+          "done_at": "2026-11-07T20:57:57.900862+00:00",
+          "status": "done",
           "title": "Dictate a note inside Earshot (saved, not typed anywhere)"
         },
         {
@@ -212,7 +248,7 @@
           "title": "Notes: in-app Record button (NoteSession tests, Notes page recording UI, recorder service)"
         }
       ],
-      "updated": "2026-11-07T03:32:18.260876+00:00"
+      "updated": "2026-11-07T22:12:08.962306+00:00"
     },
     "bdc8b3c3-7aac-4f79-849d-0791f91a54fc": {
       "adr": "ADR-2611021633",
@@ -242,28 +278,60 @@
       "updated": "2026-11-02T21:51:16.110456+00:00"
     },
     "e8000968-e6c7-4c12-a152-9697b902d961": {
-      "adr": "ADR-2611071400",
+      "adr": "ADR-2611072000",
       "files": [
-        "docs/adrs/ADR-2611071000-dictation-cleanup-with-on-device-model.md",
-        "docs/adrs/ADR-2611071100-local-mcp-server-for-agents.md",
-        "scripts/earshot-mcp-test",
-        "EarshotApp/Tests/CleanupTests.swift",
-        "docs/adrs/ADR-2611071300-pill-names-the-cleanup-stage.md",
-        "EarshotApp/build.sh",
-        "docs/adrs/ADR-2611071400-highlight-the-dictation-target-window.md",
-        "EarshotApp/Tests/HighlightTests.swift"
+        ".claude/worktrees/agent-a1fba041cc52bb9fc/site/index.html",
+        ".claude/worktrees/agent-a1fba041cc52bb9fc/site/style.css",
+        "/tmp/chrome-b.sh",
+        "/tmp/diffcmds.py",
+        "/tmp/rv/c.py",
+        "/tmp/rv/s.js",
+        "/tmp/urls.sh",
+        "/tmp/rv/crop.py",
+        "/tmp/brand-scripts/prep.py",
+        "/tmp/brand-scripts/build.sh",
+        "docs/website/copy.md",
+        "/tmp/brand-scripts/mklogos.py",
+        "/tmp/brand-scripts/raster.sh",
+        "/tmp/brand-scripts/all-logos.sh",
+        "/tmp/brand-scripts/site.sh",
+        ".claude/worktrees/agent-a4479036244da4f21/docs/brand/tokens.md",
+        ".claude/worktrees/agent-a4479036244da4f21/docs/brand/brand-sheet.html",
+        "/tmp/brand-scripts/shot.sh",
+        "/tmp/brand-scripts/crop.py",
+        "docs/adrs/ADR-2611072000-one-brand-flame-orange.md",
+        "EarshotApp/Tests/BrandTests.swift",
+        "EarshotApp/Tests/brand-check.sh",
+        "EarshotApp/Tests/brand-pixels.py",
+        "/tmp/crop.py",
+        "/tmp/shot.sh",
+        "/tmp/slice.py",
+        "/tmp/crop2.py",
+        ".claude/worktrees/agent-ac2c54cb7947613bd/site-draft/index.html",
+        "/tmp/restructure.py",
+        "/tmp/contrast.py",
+        "/tmp/phone.js",
+        "/tmp/edit2.py",
+        ".claude/worktrees/agent-ac2c54cb7947613bd/site-draft/style.css",
+        "EarshotApp/Tests/DetailNavTests.swift",
+        "EarshotApp/Tests/window-check.py",
+        "scripts/readme-check",
+        "docs/releases/1.1.0.md",
+        "docs/adrs/ADR-2611080900-spoken-send-command.md",
+        "EarshotApp/Tests/SpokenSendTests.swift",
+        "docs/releases/1.2.0.md"
       ],
       "gate": "python3 -I scripts/earshot-mcp-test && cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
       "last_run": {
-        "at": "2026-11-07T19:57:16.293072+00:00",
-        "gate": "cd EarshotApp && swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-macosx26.4 $(ls *.swift) && bash Tests/run.sh",
+        "at": "2026-11-08T16:18:05.088107+00:00",
+        "gate": "cd EarshotApp && bash Tests/run.sh >/dev/null && swiftc -typecheck -swift-version 5 -parse-as-library -target arm64-apple-macosx26.4 *.swift && cd .. && python3 -I scripts/readme-check",
         "stage": "build"
       },
       "pid": 15802,
       "pid_start": null,
       "running": null,
       "stage": "build",
-      "updated": "2026-11-07T19:57:16.293084+00:00"
+      "updated": "2026-11-08T16:18:05.088116+00:00"
     },
     "f1d3efd1-a9d0-47b4-9b5e-c875df1df171": {
       "adr": "ADR-2611051236",

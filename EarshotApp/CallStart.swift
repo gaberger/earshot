@@ -74,3 +74,61 @@ struct CallStartDetector {
         return .none
     }
 }
+
+/// Decides when the "record this meeting?" panel goes away by itself, from the same stream of
+/// "is another app capturing the microphone" samples and whether Earshot is recording.
+///
+/// The panel is a question, not a notice, so it leaves as soon as the question has no point:
+/// - Recording started: the user answered it. It goes at once.
+/// - The call ended: `callEndedAfter` seconds of continuous quiet since the last capture. A short
+///   break inside a call does not dismiss it.
+/// - Nobody answered: it goes `timeout` seconds after it was shown, whatever the samples say.
+/// - No evidence (a `nil` probe) counts toward neither capture nor quiet: it clears both, so quiet
+///   must be seen again, from scratch, before the panel counts the call as over.
+///
+/// The offer is made while another app is capturing, so the last capture starts at `shownAt`.
+/// It is a pure value type: time is passed in with each sample, so it is deterministic.
+struct CallOfferPanelRule {
+    struct Config {
+        /// Seconds of continuous quiet after the last capture that mean the call is over.
+        var callEndedAfter: TimeInterval = 15
+        /// Seconds after the panel is shown that it goes, unanswered.
+        var timeout: TimeInterval = 120
+    }
+
+    enum Dismissal: Equatable { case recordingStarted, callEnded, timedOut }
+
+    let config: Config
+    let shownAt: TimeInterval
+    private var lastCapture: TimeInterval?
+    private var quietSince: TimeInterval?
+
+    init(shownAt: TimeInterval, _ config: Config = Config()) {
+        self.config = config
+        self.shownAt = shownAt
+        self.lastCapture = shownAt
+    }
+
+    /// Feeds one sample. Returns why the panel should go, or `nil` to keep it.
+    mutating func ingest(capturing: Bool?, recording: Bool, at t: TimeInterval) -> Dismissal? {
+        if recording { return .recordingStarted }
+        if t - shownAt >= config.timeout { return .timedOut }
+        switch capturing {
+        case true?:
+            lastCapture = t
+            quietSince = nil
+        case false?:
+            if quietSince == nil { quietSince = lastCapture ?? t }
+            if let since = quietSince, t - since >= config.callEndedAfter { return .callEnded }
+        case nil:
+            lastCapture = nil
+            quietSince = nil
+        }
+        return nil
+    }
+
+    /// The panel's words: a title naming the app, the question, and the ignore button.
+    static func text(appName: String) -> (title: String, body: String, ignore: String) {
+        ("\(appName) is using the microphone", "Record this meeting?", "Not for \(appName)")
+    }
+}
