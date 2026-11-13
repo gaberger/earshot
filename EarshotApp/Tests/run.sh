@@ -74,3 +74,6 @@ bash Tests/order-check.sh
 # RecordingEndTests (ADR-2611101015) also uses @main and fails itself if fewer than 12 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library RecordingEnd.swift Tests/RecordingEndTests.swift -o "$out/recording-end-tests"
 "$out/recording-end-tests"
+# CallOfferPanelTests (ADR-2611130933) also uses @main and fails itself if fewer than 10 checks ran.
+swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library CallStart.swift Tests/CallOfferPanelTests.swift -o "$out/call-offer-panel-tests"
+"$out/call-offer-panel-tests"
