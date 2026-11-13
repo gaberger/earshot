@@ -232,6 +232,7 @@ final class Library: ObservableObject {
     private var callDetector = CallStartDetector()
     private var offerTimer: Timer?
     private let callNotifier = CallOfferNotifier()
+    private let callPanel = CallOfferPanel()
 
     let dir: URL
     private let home = FileManager.default.homeDirectoryForCurrentUser
@@ -295,21 +296,24 @@ final class Library: ObservableObject {
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.dictation.refresh() }
         }
-        callNotifier.onRecord = { [weak self] in
-            guard let self, !self.recording else { return }
-            self.log("call offer: user chose Record")
-            self.toggleRecording()
-        }
-        callNotifier.onIgnore = { [weak self] bundleID in
-            guard let self else { return }
-            var ignored = UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? []
-            if !ignored.contains(bundleID) { ignored.append(bundleID) }
-            UserDefaults.standard.set(ignored, forKey: Prefs.callOfferIgnoredApps)
-            self.log("call offer: user chose Not for \(bundleID)")
-        }
+        callNotifier.onRecord = { [weak self] in self?.callOfferRecord() }
+        callNotifier.onIgnore = { [weak self] bundleID in self?.callOfferIgnore(bundleID) }
         offerTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.offerTick() }
         }
+    }
+
+    private func callOfferRecord() {
+        guard !recording else { return }
+        log("call offer: user chose Record")
+        toggleRecording()
+    }
+
+    private func callOfferIgnore(_ bundleID: String) {
+        var ignored = UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? []
+        if !ignored.contains(bundleID) { ignored.append(bundleID) }
+        UserDefaults.standard.set(ignored, forKey: Prefs.callOfferIgnoredApps)
+        log("call offer: user chose Not for \(bundleID)")
     }
 
     private func offerTick() {
@@ -317,19 +321,28 @@ final class Library: ObservableObject {
         guard Prefs.offerOnCallEnabled() else { return }
         let ignored = Set(UserDefaults.standard.stringArray(forKey: Prefs.callOfferIgnoredApps) ?? [])
         let procs = OtherAppMicProbe.capturingProcesses()?.filter { !($0.bundleID.map(ignored.contains) ?? false) }
-        let verdict = callDetector.ingest(capturing: procs.map { !$0.isEmpty }, recording: recording,
-                                          at: ProcessInfo.processInfo.systemUptime)
+        let now = ProcessInfo.processInfo.systemUptime
+        let capturing = procs.map { !$0.isEmpty }
+        let verdict = callDetector.ingest(capturing: capturing, recording: recording, at: now)
+        if callPanel.isShown,
+           let reason = callPanel.tick(capturing: capturing, recording: recording, at: now) {
+            log("call offer: panel dismissed (\(reason))")
+        }
         guard verdict == .offer, !recording, let first = procs?.first else { return }
         let name = NSRunningApplication(processIdentifier: first.pid)?.localizedName
             ?? first.bundleID ?? "Another app"
         log("call offer: \(name) (\(first.bundleID ?? "pid \(first.pid)")) has held the microphone, offering to record")
+        let bundleID = first.bundleID
+        callPanel.show(appName: name, bundleID: bundleID,
+                       onRecord: { [weak self] in self?.callOfferRecord() },
+                       onIgnore: { [weak self] in if let bundleID { self?.callOfferIgnore(bundleID) } })
+        log("call offer: panel shown for \(name)")
         Task { @MainActor in
-            let posted = await callNotifier.offer(appName: name, bundleID: first.bundleID)
-            if posted {
-                log("call offer: notification posted for \(name)")
-            } else {
-                log("call offer: notification not allowed, showing a notice instead")
+            if let error = await callNotifier.offer(appName: name, bundleID: bundleID) {
+                log("call offer: system notification unavailable (\(error)), the panel carries the offer")
                 notice = "\(name) is using the microphone. Press Record to capture this meeting."
+            } else {
+                log("call offer: notification posted for \(name)")
             }
         }
     }
@@ -935,12 +948,16 @@ final class CallOfferNotifier: NSObject, UNUserNotificationCenterDelegate, @unch
         ])
     }
 
-    /// Asks for permission if needed, posts the offer, and returns whether it was allowed.
-    func offer(appName: String, bundleID: String?) async -> Bool {
+    /// Asks for permission if needed and posts the offer. Returns nil when it was posted, else why not.
+    func offer(appName: String, bundleID: String?) async -> String? {
         register()
         let center = UNUserNotificationCenter.current()
-        let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
-        guard granted else { return false }
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .sound])
+            guard granted else { return "authorization refused" }
+        } catch {
+            return Self.describe(error)
+        }
         let content = UNMutableNotificationContent()
         content.title = "\(appName) is using the microphone"
         content.body = "Record this meeting?"
@@ -949,10 +966,16 @@ final class CallOfferNotifier: NSObject, UNUserNotificationCenterDelegate, @unch
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         do {
             try await center.add(request)
-            return true
+            return nil
         } catch {
-            return false
+            return Self.describe(error)
         }
+    }
+
+    /// "UNErrorDomain 1: Notifications are not allowed for this application".
+    private static func describe(_ error: Error) -> String {
+        let ns = error as NSError
+        return "\(ns.domain) \(ns.code): \(ns.localizedDescription)"
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
@@ -1638,8 +1661,9 @@ struct HelpView: View {
 
                 section("Calls", "phone.badge.waveform") {
                     item("Offer to record", "When another app, such as Zoom, Teams or Meet, has been using the "
-                         + "microphone for about 10 seconds, Earshot shows a notification: Record this meeting? "
-                         + "It only asks; it never records without your click. Choose Not for that app to stop "
+                         + "microphone for about 10 seconds, Earshot shows a small panel at the top right of the "
+                         + "screen: Record this meeting? with Record and Not for <App>. It goes away by itself when "
+                         + "the call ends or after two minutes. It only asks; it never records without your click. Choose Not for that app to stop "
                          + "asking about it. Earshot has to be running to notice a call, so turn on Open Earshot at "
                          + "login in Settings and it waits in the menu bar.")
                 }
