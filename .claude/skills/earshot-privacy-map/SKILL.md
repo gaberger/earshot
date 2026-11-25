@@ -11,6 +11,8 @@ description: Which of Earshot's three functions keeps what, and where each priva
 | **Notes** | **Record a note** on the Notes page | a note in Earshot | the text only, in `~/Library/Application Support/Earshot/notes.json`; audio deleted at once |
 | **Dictation** | the hotkey, in any app | the app in front | nothing. Exceptions: one failed clip in the temp folder until the next dictation; the clipboard in the two fallbacks (no Accessibility, or you switched windows) |
 
+**Call audio** (ADR-2611240900) is an option inside Recordings only: all system audio (a Core Audio tap) or an input device, mixed into the one recording file. It stays on this Mac, can record other people's voices (consent is the user's responsibility), and Dictation and Notes never use it.
+
 The three share no data and no settings page. They share one thing on purpose: the corrections dictionary
 (`EarshotApp/DictationDictionary.swift`), which is the user's vocabulary.
 

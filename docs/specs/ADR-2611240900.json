@@ -1,0 +1,343 @@
+{
+  "adr": "ADR-2611240900",
+  "feature": "Call-audio source for recordings",
+  "description": "Let the user choose None, All system audio, or One app as a call-audio source, captured by a Core Audio process tap and mixed with the microphone into one 16 kHz mono WAV.",
+  "universal": [
+    "§3",
+    "§5",
+    "§7"
+  ],
+  "accepted": {
+    "by": "craigjohnson",
+    "sha256": "9f21200859d078bee524c3184db1a62064a311be352c7bbb2c13d85da834a235"
+  },
+  "sealed": {
+    "EarshotApp/Tests/call-audio.test.mjs": "d6066ed37281218ae8ab9c388f2e2f1c3572237d7cf75db5b32c79bcfa8160ed"
+  },
+  "specs": [
+    {
+      "id": "S01",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "The call-audio source setting offers exactly three values and defaults to None.",
+      "given": "a fresh install on a Mac that supports process taps and the user opens Settings → Recording",
+      "when": "the call-audio source setting is shown",
+      "then": "the choices are None, All system audio and One app, and None is selected",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S01",
+      "red": "6683172"
+    },
+    {
+      "id": "S02",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Choosing One app lists running apps and records only that app's output.",
+      "given": "the source is One app, with Zoom chosen from the list of running apps and other apps also playing sound",
+      "when": "the user starts a recording",
+      "then": "the tap targets only Zoom's output and the other apps' audio is not in the recording",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S02",
+      "red": "6683172"
+    },
+    {
+      "id": "S03",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "All system audio records everything the Mac plays.",
+      "given": "the source is All system audio and two different apps are playing sound",
+      "when": "the user starts a recording",
+      "then": "the tap is created for all system output and both apps' audio is present in the recording",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S03",
+      "red": "6683172"
+    },
+    {
+      "id": "S04",
+      "decision": [
+        "§1"
+      ],
+      "kind": "negative",
+      "description": "Source None never creates a tap and changes nothing from today's microphone-only behaviour.",
+      "given": "the source is None",
+      "when": "the user starts and stops a recording",
+      "then": "no tap is created, no call-audio permission is requested, and the recording contains the microphone only, exactly as before",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S04",
+      "red": "6683172"
+    },
+    {
+      "id": "S05",
+      "decision": [
+        "§1"
+      ],
+      "kind": "negative",
+      "description": "One app cannot be started without a chosen app.",
+      "given": "the source is One app but no app has been chosen, or the chosen app is no longer running",
+      "when": "the user starts a recording",
+      "then": "no tap is created for any other app or for all system audio, the user is told no app is selected, and the recording proceeds with microphone only",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S05",
+      "red": "6683172"
+    },
+    {
+      "id": "S06",
+      "decision": [
+        "§2"
+      ],
+      "kind": "example",
+      "description": "Capture uses a Core Audio process tap and asks only for System Audio Recording permission.",
+      "given": "the source is All system audio on macOS 14.2 or later",
+      "when": "the user picks the source and starts a recording",
+      "then": "the tap is built with a Core Audio tap description, only the System Audio Recording Only permission is requested, and Screen Recording is never requested",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S06",
+      "red": "6683172"
+    },
+    {
+      "id": "S07",
+      "decision": [
+        "§2"
+      ],
+      "kind": "negative",
+      "description": "On an older OS the setting is hidden and the microphone path is unchanged.",
+      "given": "the Mac runs a macOS version earlier than 14.2",
+      "when": "the user opens Settings → Recording and starts a recording",
+      "then": "the call-audio source setting is not shown, no tap is attempted, and the recording is microphone only"
+    },
+    {
+      "id": "S08",
+      "decision": [
+        "§2"
+      ],
+      "kind": "negative",
+      "description": "ScreenCaptureKit is never used for call audio.",
+      "given": "any source setting and any permission state",
+      "when": "call audio is captured",
+      "then": "no ScreenCaptureKit capture is started and no Screen Recording prompt appears"
+    },
+    {
+      "id": "S09",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "Mic and tap are mixed into one 16 kHz mono WAV.",
+      "given": "the source is All system audio, the microphone carries one voice and the tap carries another",
+      "when": "a recording is made and stopped",
+      "then": "exactly one WAV file results, 16 kHz mono, containing both voices, and transcription, speaker labelling and summary receive it unchanged",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S09",
+      "red": "6683172"
+    },
+    {
+      "id": "S10",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "The tap starts and stops with Record.",
+      "given": "the source is One app and the app is running",
+      "when": "the user presses Record and later Stop",
+      "then": "the tap starts at Record, stops at Stop, and no audio is captured before or after",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S10",
+      "red": "6683172"
+    },
+    {
+      "id": "S11",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "A chosen app quitting mid-recording ends the tap but not the recording.",
+      "given": "a recording is in progress with One app set to Zoom",
+      "when": "Zoom quits",
+      "then": "the tap ends, the microphone keeps recording, and on Stop the single WAV is saved with audio up to the quit and the microphone after it",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S11",
+      "red": "6683172"
+    },
+    {
+      "id": "S12",
+      "decision": [
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "Echo is not doubled: a remote voice present in both mic and tap is not heard twice.",
+      "given": "speakers are in use, so the remote voice is in the tap and also leaks into the microphone with a delay",
+      "when": "the two are mixed",
+      "then": "the remote voice appears once in the mix, not as a doubled or echoed signal, and the level is not raised by the duplicate",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S12",
+      "red": "6683172"
+    },
+    {
+      "id": "S13",
+      "decision": [
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "Nothing is written outside the single recording file.",
+      "given": "a recording with a tap in progress",
+      "when": "the recording runs and stops",
+      "then": "no separate tap file or other audio file is written anywhere, and the only artefact is the one WAV"
+    },
+    {
+      "id": "S14",
+      "decision": [
+        "§3"
+      ],
+      "kind": "property",
+      "description": "For any mix of mic and tap input the output is a single 16 kHz mono stream with no clipping.",
+      "given": "any mic signal and any tap signal, of any sample rate, channel count and length, including silence on either one",
+      "when": "they are mixed",
+      "then": "the output is mono at 16 kHz, its length covers the longer input, samples stay within range, and silence on one input leaves the other audible",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S14",
+      "red": "6683172"
+    },
+    {
+      "id": "S15",
+      "decision": [
+        "§4"
+      ],
+      "kind": "example",
+      "description": "Permission is asked when the user picks a source, not at launch.",
+      "given": "a first launch, then the user selects All system audio in Settings",
+      "when": "the app launches and later the source is picked",
+      "then": "no call-audio permission is requested at launch, and it is requested when the source is picked, using the same Allow card as ADR-2611142200",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S15",
+      "red": "6683172"
+    },
+    {
+      "id": "S16",
+      "decision": [
+        "§4"
+      ],
+      "kind": "example",
+      "description": "A refused permission offers Open Settings.",
+      "given": "the permission card is shown after picking a source and the user does not allow it",
+      "when": "the user refuses",
+      "then": "the card offers Open Settings, following the Allow then Open Settings rule of ADR-2611142200",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S16",
+      "red": "6683172"
+    },
+    {
+      "id": "S17",
+      "decision": [
+        "§4"
+      ],
+      "kind": "negative",
+      "description": "Refusal falls back to microphone only with a visible message.",
+      "given": "the user has refused the call-audio permission and the source is All system audio or One app",
+      "when": "the user starts a recording",
+      "then": "no tap is created, the recording is microphone only, and a visible message says call audio is not being recorded because permission was refused",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S17",
+      "red": "6683172"
+    },
+    {
+      "id": "S18",
+      "decision": [
+        "§4"
+      ],
+      "kind": "negative",
+      "description": "No permission request when the source is None or at launch.",
+      "given": "the source is None",
+      "when": "the app launches and the user records",
+      "then": "the call-audio permission is never requested",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S18",
+      "red": "6683172"
+    },
+    {
+      "id": "S19",
+      "decision": [
+        "§5"
+      ],
+      "kind": "example",
+      "description": "Recordings use the tap when a source is set.",
+      "given": "the source is One app and the user starts a meeting recording",
+      "when": "the recording starts",
+      "then": "the tap is requested for that recording",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S19",
+      "red": "6683172"
+    },
+    {
+      "id": "S20",
+      "decision": [
+        "§5"
+      ],
+      "kind": "negative",
+      "description": "Dictation and Notes never request the tap or its permission.",
+      "given": "the source is All system audio with permission not yet granted",
+      "when": "the user starts Dictation or records in Notes",
+      "then": "no tap is created, no call-audio permission is requested, and only the microphone is used"
+    },
+    {
+      "id": "S21",
+      "decision": [
+        "§5"
+      ],
+      "kind": "property",
+      "description": "Only the Recordings mode can ever cause a tap.",
+      "given": "any recording mode among Dictation, Notes and Recordings, and any source setting and permission state",
+      "when": "capture starts",
+      "then": "a tap is created only if the mode is Recordings, the source is not None, and permission is granted",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S21",
+      "red": "6683172"
+    },
+    {
+      "id": "S22",
+      "decision": [
+        "§6"
+      ],
+      "kind": "example",
+      "description": "Privacy documents are updated together and state audio stays on this Mac.",
+      "given": "the change is ready for acceptance",
+      "when": "the README, the Settings footnote, the in-app Help, docs/PRIVACY.md and the earshot-privacy-map skill are read",
+      "then": "each states that audio stays on this Mac and that other people's voices may now be recorded, and Help says consent is the user's responsibility",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S22",
+      "red": "6683172"
+    },
+    {
+      "id": "S23",
+      "decision": [
+        "§6"
+      ],
+      "kind": "negative",
+      "description": "No privacy surface is left stale and no audio leaves the Mac.",
+      "given": "call audio is being recorded",
+      "when": "the app is used and its network activity is observed",
+      "then": "no audio is sent off the Mac, and none of the five privacy surfaces still describes recording as microphone only"
+    },
+    {
+      "id": "S24",
+      "decision": [
+        "§7"
+      ],
+      "kind": "example",
+      "description": "Source choice and mixing are pure and the tap sits behind a port.",
+      "given": "the domain and use-case code with a fake tap adapter behind the port",
+      "when": "a recording is run with each source value",
+      "then": "the source choice and the mix are computed without Core Audio, and the fake tap supplies the call audio",
+      "test": "EarshotApp/Tests/call-audio.test.mjs::S24",
+      "red": "6683172"
+    },
+    {
+      "id": "S25",
+      "decision": [
+        "§7"
+      ],
+      "kind": "negative",
+      "description": "Domain and use-case code do not depend on Core Audio.",
+      "given": "the domain and use-case modules",
+      "when": "their dependencies are inspected",
+      "then": "none import Core Audio, AVFoundation or CATapDescription; only the driven adapter does"
+    },
+    {
+      "id": "S26",
+      "decision": [
+        "§7"
+      ],
+      "kind": "property",
+      "description": "Source choice and mixing are deterministic and free of side effects.",
+      "given": "any source setting, OS capability, permission state and pair of input signals",
+      "when": "the source choice and mix are evaluated twice",
+      "then": "the results are identical and nothing is read from or written to the system"
+    }
+  ]
+}

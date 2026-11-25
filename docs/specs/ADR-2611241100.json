@@ -1,0 +1,290 @@
+{
+  "adr": "ADR-2611241100",
+  "feature": "Call-audio source: input device or all system audio",
+  "description": "The call-audio picker in Settings → Recording offers None, All system audio, or an input device; device sources are captured by a second session and mixed with the mic, and a missing device never stops the recording.",
+  "universal": [
+    "§1",
+    "§3",
+    "§4",
+    "§5"
+  ],
+  "accepted": {
+    "by": "craigjohnson",
+    "sha256": "30cc63f7261d92b6df4dc33799fdaf04933caa65bbfb51c7571c5bef4b55ef59"
+  },
+  "sealed": {
+    "EarshotApp/Tests/call-audio-devices.test.mjs": "b6891c08a871acdb7244dc0bb78f64d2db0e76e5d1a0dd16ed13b66202c260e3"
+  },
+  "specs": [
+    {
+      "id": "S01",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Picker offers None, All system audio and input devices, defaulting to None",
+      "given": "macOS lists audio inputs 'MacBook Mic' and 'BlackHole 2ch', and no call-audio choice has been stored",
+      "when": "the call-audio picker options are built",
+      "then": "the options are None, All system audio, 'MacBook Mic' and 'BlackHole 2ch'; the selected value is None",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S01",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S02",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "The microphone device is not offered a second time",
+      "given": "inputs 'MacBook Mic', 'BlackHole 2ch' and 'Loopback' exist and 'MacBook Mic' is chosen as the microphone",
+      "when": "the call-audio picker options are built",
+      "then": "the device options are 'BlackHole 2ch' and 'Loopback' only; 'MacBook Mic' appears once at most, as the microphone and not in the call-audio list",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S02",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S03",
+      "decision": [
+        "§1"
+      ],
+      "kind": "negative",
+      "description": "No 'One app' choice or running-app list exists",
+      "given": "several regular apps (e.g. Safari, Zoom) are running",
+      "when": "the call-audio picker options are built",
+      "then": "no option refers to an app or 'One app'; the running apps are not listed",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S03",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S04",
+      "decision": [
+        "§1"
+      ],
+      "kind": "property",
+      "description": "Options are always None, All system audio, then every input except the mic",
+      "given": "any set of audio input devices and any microphone choice (or none)",
+      "when": "the picker options are built",
+      "then": "the options are exactly None, All system audio, plus each listed input device other than the microphone, with no duplicates and no app entries",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S04",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S05",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Changing the microphone to the device previously chosen as call audio removes it from the list",
+      "given": "call-audio choice is 'BlackHole 2ch' and the microphone is 'MacBook Mic'",
+      "when": "the user selects 'BlackHole 2ch' as the microphone",
+      "then": "'BlackHole 2ch' is no longer offered as a call-audio device and the stored call-audio choice does not silently capture the same device twice",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S05",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S06",
+      "decision": [
+        "§2"
+      ],
+      "kind": "example",
+      "description": "The call-audio row sits directly under Microphone in the Recording card",
+      "given": "the Settings Recording card layout",
+      "when": "the rows are listed in order",
+      "then": "the call-audio row is immediately after the Microphone row, in the Recording card, and no separate call-audio section exists"
+    },
+    {
+      "id": "S07",
+      "decision": [
+        "§2"
+      ],
+      "kind": "example",
+      "description": "Permission row appears only for All system audio",
+      "given": "the call-audio choice is All system audio and System Audio Recording permission is not granted",
+      "when": "the Recording card is shown",
+      "then": "a permission row appears under the call-audio row",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S07",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S08",
+      "decision": [
+        "§2",
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "No permission row for None or an input device",
+      "given": "the choice is None, or the choice is an input device such as 'BlackHole 2ch'",
+      "when": "the Recording card is shown",
+      "then": "no System Audio permission row appears",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S08",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S09",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "A device source starts and stops with Record and is mixed into one 16 kHz mono WAV",
+      "given": "call-audio choice is 'BlackHole 2ch' and the microphone is working",
+      "when": "Record is pressed and later stopped",
+      "then": "a second capture session for the device starts on Record and stops on Stop, and one 16 kHz mono WAV is produced containing the mic mixed with the device audio",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S09",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S10",
+      "decision": [
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "A device source does not request System Audio Recording permission",
+      "given": "choice is an input device and System Audio Recording permission is not granted",
+      "when": "Record is pressed",
+      "then": "recording starts with the device source and System Audio Recording permission is never requested",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S10",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S11",
+      "decision": [
+        "§3"
+      ],
+      "kind": "property",
+      "description": "Remote voice is not doubled in the mix, same rule as the tap",
+      "given": "any microphone signal and any device signal in which the remote voice also leaks into the microphone",
+      "when": "the mix is computed",
+      "then": "the result follows the same mixing rule as the tap (ADR-2611240900 §3): one mono 16 kHz output and the remote voice is not doubled",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S11",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S12",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "All system audio asks permission only for that choice",
+      "given": "choice is All system audio and permission is not granted",
+      "when": "Record is pressed",
+      "then": "System Audio Recording permission is requested",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S12",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S13",
+      "decision": [
+        "§4"
+      ],
+      "kind": "example",
+      "description": "Device unplugged mid-recording keeps the mic recording with a message",
+      "given": "recording with choice 'BlackHole 2ch'",
+      "when": "the device is unplugged",
+      "then": "the microphone keeps recording, the recording does not stop, and a visible message says call audio is not being recorded",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S13",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S14",
+      "decision": [
+        "§4"
+      ],
+      "kind": "example",
+      "description": "Device missing at Record leaves mic recording with a message",
+      "given": "the chosen device 'Loopback' is not present",
+      "when": "Record is pressed",
+      "then": "recording starts with the microphone only and a visible message says call audio is not being recorded",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S14",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S15",
+      "decision": [
+        "§4"
+      ],
+      "kind": "negative",
+      "description": "No fallback to another device",
+      "given": "the chosen device is missing while other inputs (e.g. 'MacBook Mic', 'BlackHole 2ch') are present",
+      "when": "Record is pressed or the device is unplugged",
+      "then": "no other device or All system audio is captured in its place and the stored choice is not changed",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S15",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S16",
+      "decision": [
+        "§4"
+      ],
+      "kind": "property",
+      "description": "A missing device never stops or fails the recording",
+      "given": "any chosen device and any moment (before Record or during recording) at which it is absent",
+      "when": "the absence occurs",
+      "then": "the microphone recording continues, the output WAV contains the mic audio, and the not-recorded message is shown",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S16",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S17",
+      "decision": [
+        "§5"
+      ],
+      "kind": "example",
+      "description": "Stored 'One app' reads as None",
+      "given": "a stored call-audio setting of 'One app' from the first build, with an app selected",
+      "when": "the setting is read",
+      "then": "the choice is None and no app is captured",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S17",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S18",
+      "decision": [
+        "§5"
+      ],
+      "kind": "negative",
+      "description": "Old 'One app' setting does not produce a permission row or capture",
+      "given": "a stored 'One app' choice",
+      "when": "the Recording card is shown and Record is pressed",
+      "then": "no permission row appears for it, and only the microphone is recorded",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S18",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S19",
+      "decision": [
+        "§5"
+      ],
+      "kind": "property",
+      "description": "Any stored value that is the legacy app choice reads as None, other values are unchanged",
+      "given": "any stored value: 'One app' with any app identifier, or None, All system audio, or a device id",
+      "when": "the stored value is read",
+      "then": "'One app' values (any app) read as None; every other value reads back as stored",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S19",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S20",
+      "decision": [
+        "§6"
+      ],
+      "kind": "example",
+      "description": "Device source and tap are interchangeable behind the CallAudioTap port",
+      "given": "a fake device adapter and a fake tap adapter, both implementing CallAudioTap",
+      "when": "the recording uses either one",
+      "then": "the mixing and choice logic work identically with either adapter and need no knowledge of which one is used"
+    },
+    {
+      "id": "S21",
+      "decision": [
+        "§6"
+      ],
+      "kind": "negative",
+      "description": "The choice and mix do not depend on capture frameworks",
+      "given": "the pure choice and mix functions",
+      "when": "they are run in a test with no AVCaptureDevice, no tap and no OS access",
+      "then": "they produce results from plain inputs alone; only the adapters touch the OS",
+      "test": "EarshotApp/Tests/call-audio-devices.test.mjs::S21",
+      "red": "a1c9d69"
+    }
+  ]
+}

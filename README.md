@@ -27,6 +27,8 @@ Requires a Mac with Apple silicon and macOS 26.4 or later.
 
 Record a call, or drop in any audio or video file. Whisper turns it into a transcript on your Mac, Earshot labels who spoke when, and a summary with action items is drafted from one of nine templates. Edit anything you like: Earshot never replaces a summary you changed without asking.
 
+Optionally, Earshot can also record the other side of a call from all system audio or from an input device such as BlackHole or Loopback (Settings → Recording → Call audio, off by default). That audio stays on this Mac like everything else, but it can include other people's voices: get their consent, and record only where it is allowed.
+
 <img src="assets/screenshots/recording-open.png" alt="An open recording with a back link at the top left and Summary and Transcript tabs" width="900">
 
 ## Find anything

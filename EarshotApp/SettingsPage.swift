@@ -26,6 +26,8 @@ struct RecordingSettingsCards: View {
     @Binding var speakerCount: Int
     @Binding var summaryTemplate: String
     let templates: [SettingsChoice]
+    /// The call-audio rows (ADR-2611240900), shown inside the Recording card under Microphone.
+    var callAudioRows: AnyView = AnyView(EmptyView())
 
     private var chosenMissing: Bool {
         !microphoneID.isEmpty && !microphones.contains { $0.id == microphoneID }
@@ -45,9 +47,8 @@ struct RecordingSettingsCards: View {
                 if chosenMissing {
                     SettingsBanner("This microphone isn't connected. Recordings use the system default until it is.")
                 }
-                SettingsRow("Stop when quiet",
-                            detail: "Stops after this long with no one speaking, and warns you for the last 30 seconds. "
-                                + "During a call it stops about a minute after you leave the call.") {
+                callAudioRows
+                SettingsRow("Stop when quiet", detail: CallAudioRules.stopWhenQuietDetail) {
                     menu($autoStopMinutes) {
                         Text("Never").tag(0)
                         ForEach([3, 5, 10, 15, 30], id: \.self) { Text("\($0) minutes").tag($0) }

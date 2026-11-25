@@ -1,0 +1,276 @@
+{
+  "adr": "ADR-2611241200",
+  "feature": "Call-audio-aware stop-when-quiet",
+  "description": "The end-of-meeting detector takes the louder of mic and call-audio level, treats playing call audio as a call in progress, and treats a failed source as no evidence, so listen-only calls are not cut off.",
+  "universal": [
+    "§1",
+    "§2",
+    "§5"
+  ],
+  "accepted": {
+    "by": "craigjohnson",
+    "sha256": "387614c26520c26d6a674a24ba5834ec5e81fb5eeff91ca0bd49a270c873d853"
+  },
+  "sealed": {
+    "EarshotApp/Tests/call-audio-stop.test.mjs": "591f4cf7e86adeaca93b658654c69fe4869acd94116c50766dd05f4b5710009a"
+  },
+  "specs": [
+    {
+      "id": "S01",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Silent mic with loud call audio keeps recording past the no-speech limit",
+      "given": "A recording with a call-audio source, the mic at a silent level, nobody heard yet, and the call-audio level above the speech threshold on every sample",
+      "when": "More than the no-speech limit (15 min) of samples is fed to the detector",
+      "then": "The detector does not stop the recording",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S01",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S02",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Silent mic with loud call audio keeps recording past the silence limit after earlier speech",
+      "given": "A recording with a call-audio source, speech heard on the mic earlier, then the mic silent while call-audio level stays above the speech threshold",
+      "when": "More than the silence limit (5 min default) passes after the last mic speech",
+      "then": "The detector does not stop the recording",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S02",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S03",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "Louder source wins per sample",
+      "given": "A call-audio source is recording; one sample has mic -50 dB and call audio -20 dB, another has mic -15 dB and call audio -60 dB",
+      "when": "Each sample is fed to the detector",
+      "then": "The detector is given -20 dB for the first and -15 dB for the second",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S03",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S04",
+      "decision": [
+        "§1"
+      ],
+      "kind": "example",
+      "description": "No call-audio source: mic level alone, as before",
+      "given": "No call-audio source is recording and the mic is silent",
+      "when": "The no-speech limit (15 min) passes",
+      "then": "The detector is fed the mic level only and stops exactly as it did before this ADR"
+    },
+    {
+      "id": "S05",
+      "decision": [
+        "§1"
+      ],
+      "kind": "negative",
+      "description": "A quieter call-audio level never lowers the mic level",
+      "given": "A call-audio source is recording, the mic is above the speech threshold and call audio is far below it",
+      "when": "The sample is fed to the detector",
+      "then": "The detector sees the mic level, counts it as speech, and does not treat the sample as silence"
+    },
+    {
+      "id": "S06",
+      "decision": [
+        "§1"
+      ],
+      "kind": "property",
+      "description": "Fed level is the max of mic and call level for all inputs",
+      "given": "Any mic level and any call-audio level in dB while a call-audio source is recording",
+      "when": "The sample is combined and fed to the detector",
+      "then": "The fed level equals max(mic, call), and with no call-audio source it equals the mic level",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S06",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S07",
+      "decision": [
+        "§2"
+      ],
+      "kind": "example",
+      "description": "Muted mic with other app letting go does not end while call audio plays",
+      "given": "Speech was heard, the other app has released the microphone (muted), and call-audio level is above the speech threshold",
+      "when": "More than a minute passes after the first 30 seconds of the call",
+      "then": "The 'call ended' rule does not fire and the recording continues",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S07",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S08",
+      "decision": [
+        "§2"
+      ],
+      "kind": "example",
+      "description": "Call-ended clock restarts while call audio is above threshold",
+      "given": "The other app has released the mic and the call-ended clock has been running, then call audio rises above the threshold",
+      "when": "The next sample is fed and call audio later falls silent",
+      "then": "The clock restarted at the loud sample, so the call-ended rule fires only a full interval after the call audio went quiet, not from the original release",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S08",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S09",
+      "decision": [
+        "§2"
+      ],
+      "kind": "negative",
+      "description": "Call-ended rule still fires when call audio is below threshold",
+      "given": "The other app has released the microphone and call-audio level is below the speech threshold",
+      "when": "The call-ended interval elapses",
+      "then": "The call-ended rule fires and the recording stops as before",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S09",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S10",
+      "decision": [
+        "§2"
+      ],
+      "kind": "property",
+      "description": "While call audio exceeds the threshold, call-ended never fires",
+      "given": "Any sequence of samples where call-audio level is above the speech threshold on every sample, with any other-app-capturing flags including released",
+      "when": "The sequence is fed to the detector for any duration",
+      "then": "The call-ended rule never fires",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S10",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S11",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "Both silent stops on time with no speech",
+      "given": "A call-audio source is recording, mic and call audio both below the speech threshold, nobody heard",
+      "when": "The no-speech limit (15 min) is reached",
+      "then": "The detector stops the recording at that limit"
+    },
+    {
+      "id": "S12",
+      "decision": [
+        "§3"
+      ],
+      "kind": "example",
+      "description": "Both silent stops on time after speech",
+      "given": "Speech was heard earlier, then mic and call audio are both below the threshold",
+      "when": "The silence limit (5 min default) passes after the last speech",
+      "then": "The detector stops the recording at that limit"
+    },
+    {
+      "id": "S13",
+      "decision": [
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "Silent call audio does not postpone stopping",
+      "given": "Call audio is on but at a silent level and the mic is quiet",
+      "when": "Samples run to the usual limits",
+      "then": "The recording is not extended beyond the usual limits because of the call-audio source"
+    },
+    {
+      "id": "S14",
+      "decision": [
+        "§3"
+      ],
+      "kind": "negative",
+      "description": "Ended call with the other app released stops",
+      "given": "A call that has really ended: nothing playing, mic quiet, other app released the microphone",
+      "when": "The usual limits or call-ended interval elapse",
+      "then": "The recording stops",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S14",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S15",
+      "decision": [
+        "§4"
+      ],
+      "kind": "example",
+      "description": "Adapter passes call-audio level as a plain number",
+      "given": "The tap or device source measures call audio",
+      "when": "The level is passed up to the detector's caller",
+      "then": "It arrives as a plain number in dB, measured in the adapter, not by the detector",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S15",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S16",
+      "decision": [
+        "§4"
+      ],
+      "kind": "negative",
+      "description": "Detector imports no capture framework",
+      "given": "The detector's source file",
+      "when": "Its imports are inspected",
+      "then": "It imports no capture framework (e.g. AVFoundation, CoreAudio, ScreenCaptureKit) and remains a pure value type"
+    },
+    {
+      "id": "S17",
+      "decision": [
+        "§5"
+      ],
+      "kind": "example",
+      "description": "Failed call source reports no level and recording continues",
+      "given": "A call-audio source fails or is unplugged mid-recording and the mic is silent",
+      "when": "The next samples are taken",
+      "then": "The source reports no level (nil/absent), the detector treats it as no evidence, and recording keeps going",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S17",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S18",
+      "decision": [
+        "§5"
+      ],
+      "kind": "negative",
+      "description": "A failed source is not reported as silence",
+      "given": "A call-audio source that has failed mid-recording",
+      "when": "Its level is read",
+      "then": "It is not reported as a silent dB value, and silence-limit timers are not advanced by the missing sample"
+    },
+    {
+      "id": "S19",
+      "decision": [
+        "§5"
+      ],
+      "kind": "property",
+      "description": "A missing level is no evidence for all inputs",
+      "given": "Any state of the detector and any sample with a missing level",
+      "when": "The sample is fed",
+      "then": "The detector does not stop because of it, and its timers and state are the same as for any other missing sample"
+    },
+    {
+      "id": "S20",
+      "decision": [
+        "§6"
+      ],
+      "kind": "example",
+      "description": "Settings text mentions call audio",
+      "given": "The Settings screen under Stop when quiet",
+      "when": "The text is read",
+      "then": "It says that call audio counts as activity when it is on",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S20",
+      "red": "a1c9d69"
+    },
+    {
+      "id": "S21",
+      "decision": [
+        "§6"
+      ],
+      "kind": "negative",
+      "description": "Settings text does not claim call audio counts when it is off",
+      "given": "Call audio is turned off",
+      "when": "The Stop when quiet text is read",
+      "then": "It does not promise that call audio counts as activity beyond the 'when it is on' condition",
+      "test": "EarshotApp/Tests/call-audio-stop.test.mjs::S21",
+      "red": "a1c9d69"
+    }
+  ]
+}

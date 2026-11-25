@@ -112,3 +112,6 @@ swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Chun
 # Hosts a real NavigationSplitView in an NSWindow. Fails itself if fewer than 7 checks ran.
 swiftc -O -swift-version 5 -target arm64-apple-macosx26.4 -parse-as-library Brand.swift BrandColors.swift SetupCard.swift HomeView.swift Tests/WindowLayoutTests.swift -o "$out/window-layout-tests"
 "$out/window-layout-tests"
+# Call-audio spec scenarios S01-S26 (ADR-2611240900), run through node --test.
+node --test Tests/call-audio.test.mjs
+node --test Tests/call-audio-devices.test.mjs Tests/call-audio-stop.test.mjs

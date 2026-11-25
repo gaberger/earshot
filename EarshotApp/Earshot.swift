@@ -435,6 +435,7 @@ final class Library: ObservableObject {
                 Task { @MainActor in self.recordingFinished(rec, end: end) }
             }
             recorder = r
+            startCallAudio()
             r.start()
             recording = true
             startWatchingForEnd()
@@ -508,7 +509,12 @@ final class Library: ObservableObject {
                 }
             }
         }
-        let state = detector.ingest(level: micLevel(), at: t, otherAppCapturing: otherAppCapturing)
+        // Call audio counts as activity (ADR-2611241200): the louder of mic and call feeds the detector, and call
+        // audio above the speech threshold means the call is still going, whatever the microphone says.
+        let call = callTap?.level
+        var capturing = otherAppCapturing
+        if CallAudioActivity.callPlaying(call: call, threshold: detector.diagnostics.threshold) { capturing = true }
+        let state = detector.ingest(level: CallAudioActivity.fed(mic: micLevel(), call: call), at: t, otherAppCapturing: capturing)
         if t - lastQuietLog >= 15 {
             lastQuietLog = t
             let d = detector.diagnostics
@@ -547,6 +553,63 @@ final class Library: ObservableObject {
         if endingIn != nil { endingIn = nil }  // @Published publishes on every assignment; only assign on change
     }
 
+    // MARK: Call audio (ADR-2611240900, ADR-2611241100, ADR-2611241200)
+
+    private var callTap: CallAudioTap?
+    private var callSession: CallAudioSession?
+    private var deviceObserver: NSObjectProtocol?
+
+    private func stopObservingDevices() {
+        if let o = deviceObserver { NotificationCenter.default.removeObserver(o) }
+        deviceObserver = nil
+    }
+
+    private func startCallAudio() {
+        callTap = nil; callSession = nil; stopObservingDevices()
+        let defaults = UserDefaults.standard
+        let source = CallAudioRules.effectiveSource(stored: defaults.string(forKey: CallAudioPrefs.source) ?? "",
+                                                    microphoneID: defaults.string(forKey: MicRecorder.settingKey) ?? "",
+                                                    defaultMicrophoneID: AVCaptureDevice.default(for: .audio)?.uniqueID)
+        guard source != .none else { return }
+        let tap: CallAudioTap = source == .allSystem ? CoreAudioTap() : InputDeviceTap()
+        let session = CallAudioSession(tap: tap)
+        let permission = CallAudioPrefs.permission
+        session.begin(CallAudioContext(mode: .recordings, source: source, osSupportsTap: CoreAudioTap.isSupported,
+                                       permission: permission == .notAsked ? .granted : permission,  // macOS asks on first use
+                                       availableDevices: Set(MicRecorder.inputs().map(\.uniqueID))))
+        if session.tapRunning {
+            callTap = tap; callSession = session
+            if source == .allSystem { CallAudioPrefs.permission = .granted }
+            log("call audio started")
+            if case .device(let id) = source {
+                deviceObserver = NotificationCenter.default.addObserver(forName: AVCaptureDevice.wasDisconnectedNotification,
+                                                                        object: nil, queue: .main) { [weak self] note in
+                    guard (note.object as? AVCaptureDevice)?.uniqueID == id else { return }
+                    MainActor.assumeIsolated {
+                        guard let self, let s = self.callSession else { return }
+                        s.deviceLost(id)
+                        self.notice = s.decision.message
+                        self.log("call audio device disconnected")
+                    }
+                }
+            }
+        } else if session.decision.message != nil {
+            if source == .allSystem, session.decision.message?.contains("could not be started") == true { CallAudioPrefs.permission = .refused }
+            notice = session.decision.message
+            log("call audio not started")
+        }
+    }
+
+    private func finishCallAudio(into url: URL) {
+        stopObservingDevices()
+        guard let tap = callTap, let session = callSession else { return }
+        session.end()
+        let signal = tap.finish()
+        callTap = nil; callSession = nil
+        do { try CallAudioWav.merge(signal, into: url) }
+        catch { notice = "Call audio could not be added to the recording."; log("call audio merge failed") }
+    }
+
     private func recordingFinished(_ r: MicRecorder, end: RecordingEnd) {
         clearRecordingState()
         recorder = nil
@@ -561,7 +624,8 @@ final class Library: ObservableObject {
             log("recording ended by itself: \(m)")
             notice = m
         }
-        guard FileManager.default.fileExists(atPath: r.url.path) else { return }
+        guard FileManager.default.fileExists(atPath: r.url.path) else { stopObservingDevices(); callTap?.stop(); callTap = nil; callSession = nil; return }
+        finishCallAudio(into: r.url)
         saveMeetingNotes(for: r.url)
         reload()
         selection = r.url.lastPathComponent
@@ -1210,7 +1274,8 @@ struct SettingsView: View {
             identifySpeakers: $identifySpeakers,
             speakerCount: $speakerCount,
             summaryTemplate: $summaryTemplate,
-            templates: SummaryTemplate.all.map { SettingsChoice(id: $0.id, name: $0.name, icon: $0.icon) })
+            templates: SummaryTemplate.all.map { SettingsChoice(id: $0.id, name: $0.name, icon: $0.icon) },
+            callAudioRows: AnyView(CallAudioSettingsRows()))
         .padding(.horizontal, 20)
         .padding(.vertical, 20)
         .onAppear { inputs = MicRecorder.inputs(); refreshLogin() }
@@ -1601,6 +1666,13 @@ struct HelpView: View {
                 section("Try it yourself", "wifi.slash") {
                     para("Turn off Wi-Fi and record something. Transcription and summaries still work, "
                          + "because no step needs the internet.")
+                }
+
+                section("Recording the other side of a call", "phone.arrow.down.left") {
+                    para("In Settings, Call audio can add the sound a call plays to your recording, from all system "
+                         + "audio or from an input device. It is off until you choose a source. That audio stays on this Mac, like the "
+                         + "rest. It can include other people's voices, and getting their consent, or recording only "
+                         + "where the law allows it, is your responsibility.")
                 }
 
                 section("Download the speech models", "arrow.down.circle") {

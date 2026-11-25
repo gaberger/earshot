@@ -44,5 +44,7 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Earshot records your voice so it can turn it into text on this Mac. The audio never leaves your computer.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Earshot records the other side of a call from the app you choose, so it can turn it into text on this Mac. The audio never leaves your computer.</string>
 </dict>
 </plist>

@@ -13,5 +13,10 @@
     }
   },
   "lifecycle_enforcement": "mandatory",
-  "name": "earshot"
+  "name": "earshot",
+  "test": {
+    "runners": {
+      "mjs": "node --test --test-name-pattern='^{name}$' {file}"
+    }
+  }
 }

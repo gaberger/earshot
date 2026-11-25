@@ -11,6 +11,7 @@ Earshot itself sends nothing about you or your recordings anywhere. The activity
 and results, never what was said: when a tool fails, the log gets its name and exit code, and the
 error text, which can quote the recording, is shown in the app only. The log and the notes file can
 be read only by your macOS user account.
+Call audio, if you turn it on in Settings, is captured from all system audio or from an input device you choose and mixed into the same recording file. It stays on this Mac like the microphone audio, and it can contain other people's voices, so getting their consent is your responsibility. It asks for macOS's System Audio Recording permission only for All system audio, and never for Dictation or Notes.
 Notes you type while recording a meeting are saved beside that recording (`.notes.md`, readable only by
 you) and go to Apple's on-device model with the transcript when it is summarized.
 
